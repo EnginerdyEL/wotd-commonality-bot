@@ -1,0 +1,29 @@
+name: WOTD Commonality
+
+on:
+  schedule:
+    - cron: '30 5 * * *'  # 12:30 AM or 1:30 AM Eastern Time (5:30 AM UTC)
+  workflow_dispatch:  # allows manual trigger from GitHub Actions tab
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run bot
+        env:
+          MW_DI_API_KEY: ${{ secrets.MW_DI_API_KEY }}
+          MW_TH_API_KEY: ${{ secrets.MW_TH_API_KEY }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python bot.py
