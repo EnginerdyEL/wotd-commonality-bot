@@ -4,6 +4,7 @@ import requests
 import matplotlib.pyplot as plt
 import xml.etree.ElementTree as ET
 from dotenv import load_dotenv
+from urllib.parse import quote
 
 # Load secrets from .env for local testing
 load_dotenv()
@@ -29,10 +30,11 @@ def get_wotd():
     first_item = root.find(".//item")
     word = first_item.find("title").text.strip().lower()
     #word = "happy" # DEBUG
+    #word = "mea culpa" # DEBUG
     print(f"WOTD from RSS: {word}")
 
     # Step 2: Look up synonyms via the Collegiate Thesaurus API
-    api_url = f"https://www.dictionaryapi.com/api/v3/references/thesaurus/json/{word}?key={MW_TH_API_KEY}"
+    api_url = f"https://www.dictionaryapi.com/api/v3/references/thesaurus/json/{quote(word)}?key={MW_TH_API_KEY}"
 
     api_response = requests.get(api_url)
     api_response.raise_for_status()
