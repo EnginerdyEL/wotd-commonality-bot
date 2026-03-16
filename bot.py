@@ -79,6 +79,23 @@ def get_recent_frequency(ngram_data, word):
     return 0
 
 
+def get_rarity_label(frequency):
+    """Return a rarity label based on ngram frequency thresholds."""
+    # These thresholds are empirically derived. See the calibrate script and results
+    if frequency >= 1e-4:
+        return "very common"
+    elif frequency >= 1e-5:
+        return "common"
+    elif frequency >= 1e-6:
+        return "moderately common"
+    elif frequency >= 1e-7:
+        return "uncommon"
+    elif frequency >= 1e-8:
+        return "rare"
+    else:
+        return "very rare"
+
+
 def generate_chart(ngram_data, words):
     """Generate a frequency chart image and return it as bytes."""
     plt.style.use('dark_background')
@@ -94,6 +111,7 @@ def generate_chart(ngram_data, words):
     ax.set_ylabel("Frequency (%)")
     ax.legend()
     ax.grid(True, alpha=0.3)
+    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x*100:.4f}%'))
     plt.tight_layout()
 
     buf = io.BytesIO()
@@ -126,16 +144,18 @@ def build_insight(word, synonyms, ngram_data):
     if wotd_freq == 0 or best_syn_freq == 0:
         return "Not enough data to calculate commonality."
 
+    rarity = get_rarity_label(wotd_freq)
+
     if wotd_freq >= best_syn_freq:
         ratio = wotd_freq / best_syn_freq
         if ratio < 1.5:
-            return f'"{word}" and "{best_syn}" are about equally common in literature.'
-        return f'"{word}" is {ratio:.1f}x more common than "{best_syn}" in literature.'
+            return f'"{word}" is {rarity} and about as common as "{best_syn}" in literature.'
+        return f'"{word}" is {rarity} and {ratio:.1f}x more common than "{best_syn}" in literature.'
     else:
         ratio = best_syn_freq / wotd_freq
         if ratio < 1.5:
-            return f'"{word}" and "{best_syn}" are about equally common in literature.'
-        return f'"{best_syn}" is {ratio:.1f}x more common than "{word}" in literature.'
+            return f'"{word}" is {rarity} and about as common as "{best_syn}" in literature.'
+        return f'"{word}" is {rarity} and {ratio:.1f}x less common than "{best_syn}" in literature.'
 
 
 def post_to_discord(insight, chart_buf):
@@ -160,7 +180,9 @@ def main():
         ngram_data = get_ngrams_data([word])
         if ngram_data:
             chart_buf = generate_chart(ngram_data, [word])
-            post_to_discord(f'No thesaurus entry found for "{word}" — showing frequency over time only.', chart_buf)
+            wotd_freq = get_recent_frequency(ngram_data, word)
+            rarity = get_rarity_label(wotd_freq)
+            post_to_discord(f'"{word}" is {rarity}. No thesaurus entry found — showing frequency over time only.', chart_buf)
         else:
             post_to_discord(f'No thesaurus entry found for "{word}" — commonality data unavailable for today\'s word.', None)
         print("Posted to Discord successfully.")
