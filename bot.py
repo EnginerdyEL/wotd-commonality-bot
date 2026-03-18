@@ -28,8 +28,9 @@ def get_wotd():
     root = ET.fromstring(response.content)
     # The first item in the feed is today's word
     first_item = root.find(".//item")
-    word = first_item.find("title").text.strip().lower()
+    #word = first_item.find("title").text.strip().lower()
     #word = "happy" # DEBUG
+    word = "salty" # DEBUG
     #word = "mea culpa" # DEBUG
     print(f"WOTD from RSS: {word}")
 
@@ -52,6 +53,41 @@ def get_wotd():
             break
 
     return word, synonyms[:3]
+
+
+def get_etymology(word):
+    """Fetch etymology from the MW Collegiate Dictionary API."""
+    import re
+    api_url = f"https://www.dictionaryapi.com/api/v3/references/collegiate/json/{quote(word)}?key={MW_DI_API_KEY}"
+    response = requests.get(api_url)
+    response.raise_for_status()
+    data = response.json()
+
+    if not data or not isinstance(data[0], dict):
+        return None
+
+    et = data[0].get('et', None)
+    if not et:
+        return None
+
+    # Extract only the main text block, ignore et_snote
+    text = ""
+    for item in et:
+        if item[0] == 'text':
+            text = item[1]
+            break
+
+    if not text:
+        return None
+
+    # Convert MW markup to Discord-compatible format
+    text = re.sub(r'\{it\}(.*?)\{/it\}', r'*\1*', text)        # italics
+    text = re.sub(r'\{ma\}\{mat\|(.*?)\|.*?\}\{/ma\}', r'\1', text)
+    text = re.sub(r'\{et_link\|.*?\}', '', text)               # strip internal links
+    text = re.sub(r'\{[^}]+\}', '', text)                      # strip any remaining tags
+    text = text.strip()
+
+    return f'📖 **Etymology of "{word}":** {text}'
 
 
 def get_ngrams_data(words):
@@ -203,6 +239,15 @@ def main():
 
     chart_buf = generate_chart(ngram_data, words)
     post_to_discord(insight, chart_buf)
+
+    etymology = get_etymology(word)
+    if etymology:
+        post_to_discord(etymology, None)
+        print(f"Etymology: {etymology}")
+    else:
+        post_to_discord(f'📖 No etymology data found for "{word}".', None)
+        print(f'No etymology data found for "{word}".')
+
     print("Posted to Discord successfully.")
 
 
