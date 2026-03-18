@@ -35,6 +35,16 @@ def get_all_frequencies(words):
 
 
 def main():
+    SPOT_CHECK_MODE = False  # Set to False to run full calibration
+    SPOT_CHECK_WORDS = ['putative', 'verbose']
+
+    if SPOT_CHECK_MODE:
+        print("Spot check mode:")
+        freq_set = get_all_frequencies(SPOT_CHECK_WORDS)
+        for word, freq in zip(SPOT_CHECK_WORDS, freq_set):
+            print(f"{word}: {freq:.2e}")
+        return
+
     words_very_common = ['the', 'happy', 'house', 'walk', 'money', 'love', 'time', 'good', 'work', 'day']
     words_common = ['eloquent', 'vibrant', 'serene', 'curious', 'stubborn', 'graceful', 'wander', 'ponder', 'vivid', 'fragile']
     words_uncommon = ['ephemeral', 'luminous', 'melancholy', 'tenacious', 'ubiquitous', 'verbose', 'candid', 'whimsical', 'stoic', 'resilient']
