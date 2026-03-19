@@ -10,6 +10,7 @@ Every day, Wordy automatically:
 3. Looks up frequency data for the word and its synonyms via Google Ngrams
 4. Posts an insight, examples below
 5. Posts a frequency-over-time chart showing the word and synonyms plotted from 1900–2019
+6. Posts the etymology from the MW Collegiate Dictionary API
 
 If no thesaurus entry exists for the word, it posts the rarity label and frequency chart for the word alone.
 
@@ -36,11 +37,16 @@ These thresholds are hardcoded into `bot.py`, more details below
 | Rare | 0.00000001% – 0.0000001% |
 | Very Rare | < 0.00000001% |
 
+## Etymology
+
+Etymology is pulled from MW Dictionary and reformatted for Discord, published after the rarity insight and graph
+
 ## Tech stack
 
 - **Python 3.14**
 - **requests** — webhook posting
 - **Merriam-Webster Collegiate Thesaurus API** — synonym lookup
+- **Merriam-Webster Collegiate Dictionary API** — etymology lookup
 - **Google Ngrams JSON endpoint** — frequency data
 - **matplotlib** — chart generation
 - **GitHub Actions** — daily scheduling (cron job)
@@ -50,8 +56,8 @@ These thresholds are hardcoded into `bot.py`, more details below
 ### Prerequisites
 - Python 3.13+
 - A Discord webhook URL for the target channel
-- A Merriam-Webster Collegiate Dictionary API key (currently unused but reserved)
-- A Merriam-Webster Collegiate Thesaurus API key
+- A Merriam-Webster Collegiate Dictionary API key - used for etymology lookup
+- A Merriam-Webster Collegiate Thesaurus API key - used for synonym lookup
 
 ### Local development
 ```bash
@@ -101,6 +107,5 @@ This generates `results.csv` with ngram frequencies for 40 reference words acros
 ## Future ideas
 
 - Slash commands for on-demand lookup of any word, requiring hosting the bot
-- Objective rarity as a standalone feature
 - Multi-server support via multiple webhooks
 - Spellcheck suggestions for unrecognized words, if on-demand is supported
