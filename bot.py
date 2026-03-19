@@ -28,9 +28,9 @@ def get_wotd():
     root = ET.fromstring(response.content)
     # The first item in the feed is today's word
     first_item = root.find(".//item")
-    #word = first_item.find("title").text.strip().lower()
+    word = first_item.find("title").text.strip().lower()
     #word = "happy" # DEBUG
-    word = "salty" # DEBUG
+    #word = "salty" # DEBUG
     #word = "mea culpa" # DEBUG
     print(f"WOTD from RSS: {word}")
 
