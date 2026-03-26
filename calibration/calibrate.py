@@ -39,7 +39,7 @@ def get_all_frequencies(words):
 
 def main():
     SPOT_CHECK_MODE = False  # Set to False to run full calibration, writing to results.csv
-    SPOT_CHECK_WORDS = ['putative', 'bosom buddy', 'bosom buddies', 'verbose', 'petrichor']
+    SPOT_CHECK_WORDS = ['putative', 'scrutinize', 'verbose', 'petrichor']
 
     if SPOT_CHECK_MODE:
         print("Spot check mode:")

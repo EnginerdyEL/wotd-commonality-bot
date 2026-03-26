@@ -1,5 +1,6 @@
 import os
 import io
+import re
 import requests
 import matplotlib.pyplot as plt
 import xml.etree.ElementTree as ET
@@ -29,9 +30,9 @@ def get_wotd():
     # The first item in the feed is today's word
     first_item = root.find(".//item")
     word = first_item.find("title").text.strip().lower()
-    #word = "happy" # DEBUG
-    #word = "salty" # DEBUG
-    #word = "mea culpa" # DEBUG
+    # word = "happy" # DEBUG
+    # word = "scrutinize" # DEBUG
+    # word = "mea culpa" # DEBUG
     print(f"WOTD from RSS: {word}")
 
     # Step 2: Look up synonyms via the Collegiate Thesaurus API
@@ -46,18 +47,18 @@ def get_wotd():
     for entry in data:
         if isinstance(entry, dict) and "meta" in entry:
             for syn_list in entry["meta"].get("syns", []):
+                # print(syn_list) # DEBUG
                 for syn in syn_list:
                     if syn.lower() != word.lower() and syn.lower() not in synonyms:
-                        synonyms.append(syn.lower())
-        if len(synonyms) >= 3:
+                        synonyms.append(re.sub(r'[()]', '', syn).lower().strip())
+        if len(synonyms) >= 6:
             break
 
-    return word, synonyms[:3]
+    return word, synonyms[:6]
 
 
 def get_etymology(word):
     """Fetch etymology from the MW Collegiate Dictionary API."""
-    import re
     api_url = f"https://www.dictionaryapi.com/api/v3/references/collegiate/json/{quote(word)}?key={MW_DI_API_KEY}"
     response = requests.get(api_url)
     response.raise_for_status()
@@ -81,11 +82,14 @@ def get_etymology(word):
         return None
 
     # Convert MW markup to Discord-compatible format
-    text = re.sub(r'\{it\}(.*?)\{/it\}', r'*\1*', text)        # italics
-    text = re.sub(r'\{ma\}\{mat\|(.*?)\|.*?\}\{/ma\}', r'\1', text)
-    text = re.sub(r'\{et_link\|.*?\}', '', text)               # strip internal links
-    text = re.sub(r'\{[^}]+\}', '', text)                      # strip any remaining tags
+    text = re.sub(r'\{it\}(.*?)\{/it\}', r'*\1*', text)              # italics to Discord format
+    text = re.sub(r'\{ma\}\{mat\|(.*?)\|.*?\}\{/ma\}', r'\1', text)  # extract cross-ref words
+    text = re.sub(r'\{et_link\|.*?\}', '', text)                     # strip internal links
+    text = re.sub(r'\s*[—–]\s*more at.*$', '', text)                 # strip "more at" and everything after
+    text = re.sub(r'\s*\+\s*-\w+[\w\s-]*$', '', text)                # strip trailing fragments like "+ -sis theo-"
+    text = re.sub(r'\{[^}]+\}', '', text)                            # strip any remaining tags
     text = text.strip()
+    # print(repr(text)) # DEBUG
 
     return f'📖 **Etymology of "{word}":** {text}'
 
@@ -164,14 +168,19 @@ def build_insight(word, synonyms, ngram_data):
 
     wotd_freq = get_recent_frequency(ngram_data, word)
 
-    # Find the most frequent synonym with data
-    best_syn = None
-    best_syn_freq = 0
-    for syn in synonyms:
-        freq = get_recent_frequency(ngram_data, syn)
-        if freq > best_syn_freq:
-            best_syn_freq = freq
-            best_syn = syn
+    # Always keep first two synonyms
+    display_synonyms = synonyms[:2]
+    
+    # For the third slot, compare synonym[2] against synonyms[3:6]
+    # and pick the most common one
+    candidates = synonyms[2:6] if len(synonyms) > 2 else []
+    if candidates:
+        best_third = max(candidates, key=lambda s: get_recent_frequency(ngram_data, s))
+        display_synonyms.append(best_third)
+    
+    # Find the most common synonym among display_synonyms for the insight text
+    best_syn = max(display_synonyms, key=lambda s: get_recent_frequency(ngram_data, s))
+    best_syn_freq = get_recent_frequency(ngram_data, best_syn)
 
     if best_syn is None or wotd_freq == 0 and best_syn_freq == 0:
         return "Not enough data to calculate commonality."
@@ -185,13 +194,13 @@ def build_insight(word, synonyms, ngram_data):
     if wotd_freq >= best_syn_freq:
         ratio = wotd_freq / best_syn_freq
         if ratio < 1.5:
-            return f'"{word}" is {rarity} and about as common as "{best_syn}" in literature.'
-        return f'"{word}" is {rarity} and {ratio:.1f}x more common than "{best_syn}" in literature.'
+            return(display_synonyms,f'"{word}" is {rarity} and about as common as "{best_syn}" in literature.')
+        return(display_synonyms,f'"{word}" is {rarity} and {ratio:.1f}x more common than "{best_syn}" in literature.')
     else:
         ratio = best_syn_freq / wotd_freq
         if ratio < 1.5:
-            return f'"{word}" is {rarity} and about as common as "{best_syn}" in literature.'
-        return f'"{word}" is {rarity} and {ratio:.1f}x less common than "{best_syn}" in literature.'
+            return(display_synonyms,f'"{word}" is {rarity} and about as common as "{best_syn}" in literature.')
+        return(display_synonyms,f'"{word}" is {rarity} and {ratio:.1f}x less common than "{best_syn}" in literature.')
 
 
 def post_to_discord(insight, chart_buf):
@@ -234,10 +243,10 @@ def main():
         print("Posted to Discord successfully.")
         return
 
-    insight = build_insight(word, synonyms, ngram_data)
+    display_synonyms, insight = build_insight(word, synonyms, ngram_data)
     print(f"Insight: {insight}")
 
-    chart_buf = generate_chart(ngram_data, words)
+    chart_buf = generate_chart(ngram_data, [word] + display_synonyms)
     post_to_discord(insight, chart_buf)
 
     etymology = get_etymology(word)
