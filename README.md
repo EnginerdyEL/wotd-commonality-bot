@@ -41,12 +41,18 @@ These thresholds are hardcoded into `bot.py`, more details below
 
 Etymology is pulled from MW Dictionary and reformatted for Discord, published after the rarity insight and graph
 
+## Regional Indicator
+
+Regional indicators are pulled from Wiktionary's wikitext API and published as part of the rarity insight line. Regions are listed in the order they appear in the Wiktionary entry.
+Currently tracked regions: Australia, New Zealand, British, UK, US, American, Canada, Canadian, Ireland, Irish, Scotland, Scottish. Hard-coded in bot.py
+
 ## Tech stack
 
 - **Python 3.14**
 - **requests** — webhook posting
 - **Merriam-Webster Collegiate Thesaurus API** — synonym lookup
 - **Merriam-Webster Collegiate Dictionary API** — etymology lookup
+- **Wiktionary API** — regional indicator lookup
 - **Google Ngrams JSON endpoint** — frequency data
 - **matplotlib** — chart generation
 - **GitHub Actions** — daily scheduling (cron job)
@@ -103,6 +109,10 @@ python3 calibrate.py
 ```
 
 This generates `results.csv` with ngram frequencies for 40 reference words across four tiers. Open in a spreadsheet, sort by frequency, and adjust the thresholds in `get_rarity_label()` in `bot.py` as needed.
+
+### Spot check mode
+
+To quickly check specific words without overwriting `results.csv`, set `SPOT_CHECK_MODE = True` in `calibrate.py` and add your words to `SPOT_CHECK_WORDS`. This will print each word's ngram frequency, rarity tier, and any regional indicators from Wiktionary — useful for investigating a specific WOTD or its synonyms or any other set of words.
 
 ## Future ideas
 

@@ -2,7 +2,7 @@ import csv
 import requests
 import sys
 sys.path.append('..')
-from bot import get_rarity_label
+from bot import get_rarity_label, get_wiktionary_labels
 
 NGRAMS_START_YEAR = 2010
 NGRAMS_END_YEAR = 2019
@@ -38,15 +38,17 @@ def get_all_frequencies(words):
 
 
 def main():
-    SPOT_CHECK_MODE = False  # Set to False to run full calibration, writing to results.csv
-    SPOT_CHECK_WORDS = ['putative', 'scrutinize', 'verbose', 'petrichor']
+    SPOT_CHECK_MODE = True  # Set to False to run full calibration, writing to results.csv
+    SPOT_CHECK_WORDS = ['petrichor', 'nappy', 'bludge']
 
     if SPOT_CHECK_MODE:
         print("Spot check mode:")
         freq_set = get_all_frequencies(SPOT_CHECK_WORDS)
         for word, freq in zip(SPOT_CHECK_WORDS, freq_set):
             rarity = get_rarity_label(freq)
-            print(f"{word}: {freq:.2e} ({rarity})")
+            regions = get_wiktionary_labels(word)
+            region_str = f"[{', '.join(regions)}]" if regions else ""
+            print(f"{word}: {freq:.2e} ({rarity}) {region_str}")
         return
 
     words_very_common = ['the', 'happy', 'house', 'walk', 'money', 'love', 'time', 'good', 'work', 'day']

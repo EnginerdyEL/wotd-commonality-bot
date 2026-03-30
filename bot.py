@@ -33,6 +33,7 @@ def get_wotd():
     # word = "happy" # DEBUG
     # word = "scrutinize" # DEBUG
     # word = "mea culpa" # DEBUG
+    # word = "bludge" # DEBUG
     print(f"WOTD from RSS: {word}")
 
     # Step 2: Look up synonyms via the Collegiate Thesaurus API
@@ -161,6 +162,48 @@ def generate_chart(ngram_data, words):
     return buf
 
 
+def get_wiktionary_labels(word):
+    """Fetch regional/usage labels from Wiktionary for a word."""
+    headers = {'User-Agent': 'WOTDCommonalityBot/1.0 (educational Discord bot; contact via GitHub)'}
+    url = f"https://en.wiktionary.org/w/api.php?action=parse&page={quote(word)}&prop=wikitext&format=json"
+    response = requests.get(url, headers=headers)
+    response.raise_for_status()
+    data = response.json()
+    
+    if 'parse' not in data:
+        return None
+    
+    wikitext = data['parse']['wikitext']['*']
+    
+    # Find all {{lb|en|...}} labels in the English section only
+    # First, extract just the English section
+    english_match = re.search(r'==English==\n(.*?)(?:\n==(?!=)|\Z)', wikitext, re.DOTALL)
+    if not english_match:
+        return None
+    english_section = english_match.group(1)
+
+    # Extract all lb|en templates (will contain regional keywords)
+    lb_matches = re.findall(r'\{\{lb\|en\|(.*?)\}\}', english_section)
+
+    # Regional labels we care about
+    # NOTE: Could also parse for "slang" and "obsolete" in this same way, but not desired at the moment
+    regional_keywords = {
+        'Australia', 'Australian', 'New Zealand', 'British', 
+        'UK', 'US', 'American', 'Canada', 'Canadian', 
+        'Ireland', 'Irish', 'Scotland', 'Scottish'
+    }
+    
+    found_regions = []
+    for match in lb_matches:
+        parts = match.split('|')
+        for part in parts:
+            part = part.strip()
+            if part in regional_keywords and part not in found_regions:
+                found_regions.append(part)
+    
+    return found_regions if found_regions else None
+
+
 def build_insight(word, synonyms, ngram_data):
     """Build the insight text comparing the WOTD to its closest synonym."""
     if not ngram_data:
@@ -244,6 +287,10 @@ def main():
         return
 
     display_synonyms, insight = build_insight(word, synonyms, ngram_data)
+    regions = get_wiktionary_labels(word)
+    if regions:
+        region_str = ", ".join(regions)
+        insight += f"\n🌏 Regional note: primarily used in {region_str}"
     print(f"Insight: {insight}")
 
     chart_buf = generate_chart(ngram_data, [word] + display_synonyms)
