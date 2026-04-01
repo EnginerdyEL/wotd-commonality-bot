@@ -31,7 +31,7 @@ def get_wotd():
     first_item = root.find(".//item")
     word = first_item.find("title").text.strip().lower()
     # word = "happy" # DEBUG
-    # word = "scrutinize" # DEBUG
+    # word = "satisfy" # DEBUG
     # word = "mea culpa" # DEBUG
     # word = "bludge" # DEBUG
     print(f"WOTD from RSS: {word}")
@@ -83,10 +83,10 @@ def get_etymology(word):
         return None
 
     # Convert MW markup to Discord-compatible format
+    # print(repr(text)) # DEBUG
     text = re.sub(r'\{it\}(.*?)\{/it\}', r'*\1*', text)              # italics to Discord format
-    text = re.sub(r'\{ma\}\{mat\|(.*?)\|.*?\}\{/ma\}', r'\1', text)  # extract cross-ref words
+    text = re.sub(r'\{ma\}\{mat\|(.*?)\|.*?\}\{/ma\}', '', text)     # remove "more at" cross-ref words
     text = re.sub(r'\{et_link\|.*?\}', '', text)                     # strip internal links
-    text = re.sub(r'\s*[—–]\s*more at.*$', '', text)                 # strip "more at" and everything after
     text = re.sub(r'\s*\+\s*-\w+[\w\s-]*$', '', text)                # strip trailing fragments like "+ -sis theo-"
     text = re.sub(r'\{[^}]+\}', '', text)                            # strip any remaining tags
     text = text.strip()
@@ -259,7 +259,8 @@ def post_to_discord(insight, chart_buf):
 
 def main():
     print("Fetching Word of the Day and posting to Discord")
-    post_to_discord('https://www.merriam-webster.com/word-of-the-day', None)
+    no_post_mode = False
+    if not no_post_mode: post_to_discord('https://www.merriam-webster.com/word-of-the-day', None)
     word, synonyms = get_wotd()
     print(f"Word: {word}, Synonyms: {synonyms}")
 
@@ -270,9 +271,9 @@ def main():
             chart_buf = generate_chart(ngram_data, [word])
             wotd_freq = get_recent_frequency(ngram_data, word)
             rarity = get_rarity_label(wotd_freq)
-            post_to_discord(f'"{word}" is {rarity}. No thesaurus entry found — showing frequency over time only.', chart_buf)
+            if not no_post_mode: post_to_discord(f'"{word}" is {rarity}. No thesaurus entry found — showing frequency over time only.', chart_buf)
         else:
-            post_to_discord(f'No thesaurus entry found for "{word}" — commonality data unavailable for today\'s word.', None)
+            if not no_post_mode: post_to_discord(f'No thesaurus entry found for "{word}" — commonality data unavailable for today\'s word.', None)
         print("Posted to Discord successfully.")
         return
 
@@ -282,7 +283,7 @@ def main():
 
     if not ngram_data:
         print(f'No Ngrams data found for "{words}", cannot compare.')
-        post_to_discord(f'Not enough data to calculate commonality for "{word}".', None)
+        if not no_post_mode: post_to_discord(f'Not enough data to calculate commonality for "{word}".', None)
         print("Posted to Discord successfully.")
         return
 
@@ -294,14 +295,14 @@ def main():
     print(f"Insight: {insight}")
 
     chart_buf = generate_chart(ngram_data, [word] + display_synonyms)
-    post_to_discord(insight, chart_buf)
+    if not no_post_mode: post_to_discord(insight, chart_buf)
 
     etymology = get_etymology(word)
     if etymology:
-        post_to_discord(etymology, None)
+        if not no_post_mode: post_to_discord(etymology, None)
         print(f"Etymology: {etymology}")
     else:
-        post_to_discord(f'📖 No etymology data found for "{word}".', None)
+        if not no_post_mode: post_to_discord(f'📖 No etymology data found for "{word}".', None)
         print(f'No etymology data found for "{word}".')
 
     print("Posted to Discord successfully.")
