@@ -86,6 +86,10 @@ Then run:
 python3 bot.py
 ```
 
+#### No post mode
+
+To run the script just on the command line without posting to Discord, set `no_post_mode = True` in `bot.py`
+
 ### Deployment
 
 The bot runs via GitHub Actions on a daily cron schedule. Secrets are stored in the repository's Actions secrets — never in code.
@@ -116,6 +120,10 @@ To quickly check specific words without overwriting `results.csv`, set `SPOT_CHE
 
 ## Future ideas
 
+- Add pronunciation guide:
+    - Share homophones or rhyming words or IPA
+    - Could link directly to an audio pronunciation, maybe embedded for people to play with one click
+- Fix issue where synonym is so relatively common that it makes the wotd appear as a flatline on the chart. Perhaps only plot when within some factor of each other
 - Slash commands for on-demand lookup of any word, requiring hosting the bot
 - Multi-server support via multiple webhooks
 - Spellcheck suggestions for unrecognized words, if on-demand is supported

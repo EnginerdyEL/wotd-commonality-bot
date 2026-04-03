@@ -30,10 +30,7 @@ def get_wotd():
     # The first item in the feed is today's word
     first_item = root.find(".//item")
     word = first_item.find("title").text.strip().lower()
-    # word = "happy" # DEBUG
-    # word = "satisfy" # DEBUG
-    # word = "mea culpa" # DEBUG
-    # word = "bludge" # DEBUG
+    # word = "shenanigans" # DEBUG
     print(f"WOTD from RSS: {word}")
 
     # Step 2: Look up synonyms via the Collegiate Thesaurus API
@@ -47,15 +44,14 @@ def get_wotd():
     synonyms = []
     for entry in data:
         if isinstance(entry, dict) and "meta" in entry:
-            for syn_list in entry["meta"].get("syns", []):
-                # print(syn_list) # DEBUG
-                for syn in syn_list:
+            syn_groups = entry["meta"].get("syns", [])
+            if syn_groups:
+                for syn in syn_groups[0]:  # only first sense group
                     if syn.lower() != word.lower() and syn.lower() not in synonyms:
                         synonyms.append(re.sub(r'[()]', '', syn).lower().strip())
-        if len(synonyms) >= 6:
-            break
+            break  # only use first dictionary entry corresponding to definition 1
 
-    return word, synonyms[:6]
+    return word, synonyms
 
 
 def get_etymology(word):
@@ -147,10 +143,10 @@ def generate_chart(ngram_data, words):
             years = list(range(NGRAMS_START_YEAR, NGRAMS_END_YEAR + 1))
             ax.plot(years, entry["timeseries"], label=entry["ngram"])
 
-    ax.set_title("Word Frequency Over Time (Google Ngrams)", fontsize=14)
-    ax.set_xlabel("Year")
-    ax.set_ylabel("Frequency (%)")
-    ax.legend()
+    ax.set_title("Word Frequency Over Time (Google Ngrams)", fontsize='20')
+    ax.set_xlabel("Year", fontsize="x-large")
+    ax.set_ylabel("Frequency (%)", fontsize="x-large")
+    ax.legend(fontsize='x-large')
     ax.grid(True, alpha=0.3)
     ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x*100:.4f}%'))
     plt.tight_layout()
@@ -205,32 +201,21 @@ def get_wiktionary_labels(word):
 
 
 def build_insight(word, synonyms, ngram_data):
-    """Build the insight text comparing the WOTD to its closest synonym."""
+    """Build the insight text comparing the WOTD to its common synonyms."""
     if not ngram_data:
         return "Not enough data to calculate commonality."
 
-    wotd_freq = get_recent_frequency(ngram_data, word)
-
-    # Always keep first two synonyms
-    display_synonyms = synonyms[:2]
-    
-    # For the third slot, compare synonym[2] against synonyms[3:6]
-    # and pick the most common one
-    candidates = synonyms[2:6] if len(synonyms) > 2 else []
-    if candidates:
-        best_third = max(candidates, key=lambda s: get_recent_frequency(ngram_data, s))
-        display_synonyms.append(best_third)
+    # Find the 3 most common synonyms
+    display_synonyms = sorted(synonyms, key=lambda s: get_recent_frequency(ngram_data, s), reverse=True)[:3]
+    print(f"Display Synonyms: {display_synonyms}") # DEBUG
     
     # Find the most common synonym among display_synonyms for the insight text
     best_syn = max(display_synonyms, key=lambda s: get_recent_frequency(ngram_data, s))
     best_syn_freq = get_recent_frequency(ngram_data, best_syn)
 
-    if best_syn is None or wotd_freq == 0 and best_syn_freq == 0:
-        return "Not enough data to calculate commonality."
-
-    # Avoid division by zero
+    wotd_freq = get_recent_frequency(ngram_data, word)
     if wotd_freq == 0 or best_syn_freq == 0:
-        return "Not enough data to calculate commonality."
+        return display_synonyms, "Not enough data to calculate commonality."
 
     rarity = get_rarity_label(wotd_freq)
 
@@ -259,7 +244,7 @@ def post_to_discord(insight, chart_buf):
 
 def main():
     print("Fetching Word of the Day and posting to Discord")
-    no_post_mode = False
+    no_post_mode = False  # DEBUG: set to True to run without posting to Discord
     if not no_post_mode: post_to_discord('https://www.merriam-webster.com/word-of-the-day', None)
     word, synonyms = get_wotd()
     print(f"Word: {word}, Synonyms: {synonyms}")
