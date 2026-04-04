@@ -290,9 +290,10 @@ def main():
     # Build insight in desired order: pronunciation, audio, commonality, regional note
     insight_parts = []
     if ipa:
-        insight_parts.append(f"🔊 Pronunciation: {ipa}")
-    if audio_url:
-        insight_parts.append(f"🎵 Audio: {audio_url}")
+        if audio_url:
+            insight_parts.append(f"🔊 Pronunciation: {ipa}  🎵  [Audio Example]({audio_url})")
+        else:
+            insight_parts.append(f"🔊 Pronunciation: {ipa}")
     insight_parts.append(commonality)
     if regions:
         insight_parts.append(f"🌏 Regional note: primarily used in {', '.join(regions)}")

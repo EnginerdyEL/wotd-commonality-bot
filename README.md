@@ -128,8 +128,13 @@ To quickly check specific words without overwriting `results.csv`, set `SPOT_CHE
 
 ## Future ideas
 
+### Near term
+
 - Fix condition where synonym is so relatively common that it makes the wotd appear as a flatline on the chart. Perhaps only plot when within some factor of each other
 - Clean up etymology markup parsing using `mwparserfromhell` library instead of unreliable regex chains
+
+### Longer term
+
 - Slash commands for on-demand lookup of any word, requiring hosting the bot
 - Multi-server support via multiple webhooks
 - Spellcheck suggestions for unrecognized words, if on-demand is supported
