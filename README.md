@@ -7,10 +7,12 @@ A Discord automation that posts daily insights about the Merriam-Webster Word of
 Every day, Wordy automatically:
 1. Posts a link to the Merriam-Webster Word of the Day
 2. Fetches the word's synonyms from the MW Collegiate Thesaurus API
-3. Looks up frequency data for the word and its synonyms via Google Ngrams
-4. Posts an insight, examples below
-5. Posts a frequency-over-time chart showing the word and synonyms plotted from 1900–2019
-6. Posts the etymology from the MW Collegiate Dictionary API
+3. Looks up and shares pronunciation in IPA format via Wiktionary API
+4. Looks up and shares pronunciation in audio format via MW Collegiate Dictionary API
+5. Looks up frequency data for the word and its common synonyms via Google Ngrams
+6. Posts an insight, examples below
+7. Posts a frequency-over-time chart showing the word and synonyms plotted from 1900–2019
+8. Posts the etymology from the MW Collegiate Dictionary API
 
 If no thesaurus entry exists for the word, it posts the rarity label and frequency chart for the word alone.
 
@@ -21,6 +23,10 @@ If no thesaurus entry exists for the word, it posts the rarity label and frequen
 > "happy" is common and 8.6x more common than "delighted" in literature.
 
 > "erin go bragh" is very rare. No thesaurus entry found — showing frequency over time only.
+
+## Pronunciation
+
+Pronunciation via IPA is pulled from Wiktionary, and pronunciation audio sample is pulled from MW Dictionary
 
 ## Rarity tiers
 
@@ -51,8 +57,8 @@ Currently tracked regions: Australia, New Zealand, British, UK, US, American, Ca
 - **Python 3.14**
 - **requests** — webhook posting
 - **Merriam-Webster Collegiate Thesaurus API** — synonym lookup
-- **Merriam-Webster Collegiate Dictionary API** — etymology lookup
-- **Wiktionary API** — regional indicator lookup
+- **Merriam-Webster Collegiate Dictionary API** — etymology and pronunciation lookup
+- **Wiktionary API** — regional indicator and IPA lookup
 - **Google Ngrams JSON endpoint** — frequency data
 - **matplotlib** — chart generation
 - **GitHub Actions** — daily scheduling (cron job)
@@ -120,10 +126,9 @@ To quickly check specific words without overwriting `results.csv`, set `SPOT_CHE
 
 ## Future ideas
 
-- Add pronunciation guide:
-    - Share homophones or rhyming words or IPA
-    - Could link directly to an audio pronunciation, maybe embedded for people to play with one click
-- Fix issue where synonym is so relatively common that it makes the wotd appear as a flatline on the chart. Perhaps only plot when within some factor of each other
+- Combine `get_wiktionary_labels` and `get_pronunciation` functions into a single `get_wiktionary_data` function so that the wiktionary API call is only done once instead of twice
+- Fix condition where synonym is so relatively common that it makes the wotd appear as a flatline on the chart. Perhaps only plot when within some factor of each other
+- Clean up etymology markup parsing using `mwparserfromhell` library instead of unreliable regex chains
 - Slash commands for on-demand lookup of any word, requiring hosting the bot
 - Multi-server support via multiple webhooks
 - Spellcheck suggestions for unrecognized words, if on-demand is supported

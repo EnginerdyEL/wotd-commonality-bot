@@ -200,6 +200,58 @@ def get_wiktionary_labels(word):
     return found_regions if found_regions else None
 
 
+def get_pronunciation(word):
+    """Fetch IPA pronunciation and MW audio URL for a word."""
+    headers = {'User-Agent': 'WOTDCommonalityBot/1.0 (educational Discord bot; contact via GitHub)'}
+    url = f"https://en.wiktionary.org/w/api.php?action=parse&page={quote(word)}&prop=wikitext&format=json"
+    response = requests.get(url, headers=headers)
+    response.raise_for_status()
+    data = response.json()
+
+    if 'parse' not in data:
+        return None, None
+
+    wikitext = data['parse']['wikitext']['*']
+
+    # Extract English section only
+    english_match = re.search(r'==English==\n(.*?)(?:\n==(?!=)|\Z)', wikitext, re.DOTALL)
+    if not english_match:
+        return None, None
+    english_section = english_match.group(1)
+
+    # Extract IPA — matches {{IPA|en|/...
+    ipa_match = re.search(r'\{\{IPA\|en\|(/[^/]+/)', english_section)
+    # ipa_region = re.search(r'\|a=([^}|]+)', english_section)
+    ipa = ipa_match.group(1) if ipa_match else None
+
+    # Extract MW audio URL from dictionary API
+    audio_url = None
+    api_url = f"https://www.dictionaryapi.com/api/v3/references/collegiate/json/{quote(word)}?key={MW_DI_API_KEY}"
+    api_response = requests.get(api_url)
+    if api_response.ok:
+        api_data = api_response.json()
+        if api_data and isinstance(api_data[0], dict):
+            prs = api_data[0].get('hwi', {}).get('prs', [])
+            if prs and 'sound' in prs[0]:
+                audio_file = prs[0]['sound']['audio']
+                # MW audio URL construction rules:
+                # - files starting with "bix" go in bix/
+                # - files starting with "gg" go in gg/
+                # - files starting with a number go in number/
+                # - otherwise use first letter as subdirectory
+                if audio_file.startswith('bix'):
+                    subdir = 'bix'
+                elif audio_file.startswith('gg'):
+                    subdir = 'gg'
+                elif audio_file[0].isdigit():
+                    subdir = 'number'
+                else:
+                    subdir = audio_file[0]
+                audio_url = f"https://media.merriam-webster.com/audio/prons/en/us/mp3/{subdir}/{audio_file}.mp3"
+
+    return ipa, audio_url
+
+
 def build_insight(word, synonyms, ngram_data):
     """Build the insight text comparing the WOTD to its common synonyms."""
     if not ngram_data:
@@ -272,16 +324,27 @@ def main():
         print("Posted to Discord successfully.")
         return
 
-    display_synonyms, insight = build_insight(word, synonyms, ngram_data)
+    display_synonyms, commonality = build_insight(word, synonyms, ngram_data)
     regions = get_wiktionary_labels(word)
+    ipa, audio_url = get_pronunciation(word)
+
+    # Build insight in desired order: pronunciation, audio, commonality, regional note
+    insight_parts = []
+    if ipa:
+        insight_parts.append(f"🔊 Pronunciation: {ipa}")
+    if audio_url:
+        insight_parts.append(f"🎵 Audio: {audio_url}")
+    insight_parts.append(commonality)
     if regions:
-        region_str = ", ".join(regions)
-        insight += f"\n🌏 Regional note: primarily used in {region_str}"
+        insight_parts.append(f"🌏 Regional note: primarily used in {', '.join(regions)}")
+    
+    insight = "\n".join(insight_parts)
     print(f"Insight: {insight}")
 
     chart_buf = generate_chart(ngram_data, [word] + display_synonyms)
     if not no_post_mode: post_to_discord(insight, chart_buf)
 
+    # Build and post etymology
     etymology = get_etymology(word)
     if etymology:
         if not no_post_mode: post_to_discord(etymology, None)
