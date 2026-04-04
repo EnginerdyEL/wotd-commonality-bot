@@ -18,9 +18,11 @@ If no thesaurus entry exists for the word, it posts the rarity label and frequen
 
 ## Example Insight output
 
-> "putative" is moderately common and 17.0x less common than "assumed" in literature.
+> 🔊 Pronunciation: /ʃɪˈnæn.ɪ.ɡənz/
+> 🎵 Audio: https://media.merriam-webster.com/audio/prons/en/us/mp3/s/shenan01.mp3
+> "shenanigans" is uncommon and 9.7x less common than "mischief" in literature.
 
-> "happy" is common and 8.6x more common than "delighted" in literature.
+> "adroit" is uncommon and 75.1x less common than "expert" in literature.
 
 > "erin go bragh" is very rare. No thesaurus entry found — showing frequency over time only.
 
@@ -126,7 +128,7 @@ To quickly check specific words without overwriting `results.csv`, set `SPOT_CHE
 
 ## Future ideas
 
-- Combine `get_wiktionary_labels` and `get_pronunciation` functions into a single `get_wiktionary_data` function so that the wiktionary API call is only done once instead of twice
+- Combine `get_wiktionary_labels` and `get_pronunciation` functions into a single `get_wiktionary_data` function so that the wiktionary API call is only done once
 - Fix condition where synonym is so relatively common that it makes the wotd appear as a flatline on the chart. Perhaps only plot when within some factor of each other
 - Clean up etymology markup parsing using `mwparserfromhell` library instead of unreliable regex chains
 - Slash commands for on-demand lookup of any word, requiring hosting the bot
