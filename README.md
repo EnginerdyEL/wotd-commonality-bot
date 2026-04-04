@@ -128,7 +128,6 @@ To quickly check specific words without overwriting `results.csv`, set `SPOT_CHE
 
 ## Future ideas
 
-- Combine `get_wiktionary_labels` and `get_pronunciation` functions into a single `get_wiktionary_data` function so that the wiktionary API call is only done once
 - Fix condition where synonym is so relatively common that it makes the wotd appear as a flatline on the chart. Perhaps only plot when within some factor of each other
 - Clean up etymology markup parsing using `mwparserfromhell` library instead of unreliable regex chains
 - Slash commands for on-demand lookup of any word, requiring hosting the bot

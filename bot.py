@@ -54,41 +54,52 @@ def get_wotd():
     return word, synonyms
 
 
-def get_etymology(word):
-    """Fetch etymology from the MW Collegiate Dictionary API."""
+def get_mw_dictionary_data(word):
+    """Fetch etymology and audio pronunciation URL from the MW Collegiate Dictionary API."""
     api_url = f"https://www.dictionaryapi.com/api/v3/references/collegiate/json/{quote(word)}?key={MW_DI_API_KEY}"
     response = requests.get(api_url)
     response.raise_for_status()
     data = response.json()
 
     if not data or not isinstance(data[0], dict):
-        return None
+        return None, None
 
-    et = data[0].get('et', None)
-    if not et:
-        return None
+    entry = data[0]
 
-    # Extract only the main text block, ignore et_snote
-    text = ""
-    for item in et:
-        if item[0] == 'text':
-            text = item[1]
-            break
+    # Extract etymology
+    etymology = None
+    et = entry.get('et', None)
+    if et:
+        text = ""
+        for item in et:
+            if item[0] == 'text':
+                text = item[1]
+                break
+        if text:
+            text = re.sub(r'\{it\}(.*?)\{/it\}', r'*\1*', text)
+            text = re.sub(r'\{ma\}\{mat\|(.*?)\|.*?\}\{/ma\}', '', text)
+            text = re.sub(r'\{et_link\|.*?\}', '', text)
+            text = re.sub(r'\s*\+\s*-\w+[\w\s-]*$', '', text)
+            text = re.sub(r'\{[^}]+\}', '', text)
+            text = text.strip()
+            etymology = f'📖 **Etymology of "{word}":** {text}'
 
-    if not text:
-        return None
+    # Extract audio URL
+    audio_url = None
+    prs = entry.get('hwi', {}).get('prs', [])
+    if prs and 'sound' in prs[0]:
+        audio_file = prs[0]['sound']['audio']
+        if audio_file.startswith('bix'):
+            subdir = 'bix'
+        elif audio_file.startswith('gg'):
+            subdir = 'gg'
+        elif audio_file[0].isdigit():
+            subdir = 'number'
+        else:
+            subdir = audio_file[0]
+        audio_url = f"https://media.merriam-webster.com/audio/prons/en/us/mp3/{subdir}/{audio_file}.mp3"
 
-    # Convert MW markup to Discord-compatible format
-    # print(repr(text)) # DEBUG
-    text = re.sub(r'\{it\}(.*?)\{/it\}', r'*\1*', text)              # italics to Discord format
-    text = re.sub(r'\{ma\}\{mat\|(.*?)\|.*?\}\{/ma\}', '', text)     # remove "more at" cross-ref words
-    text = re.sub(r'\{et_link\|.*?\}', '', text)                     # strip internal links
-    text = re.sub(r'\s*\+\s*-\w+[\w\s-]*$', '', text)                # strip trailing fragments like "+ -sis theo-"
-    text = re.sub(r'\{[^}]+\}', '', text)                            # strip any remaining tags
-    text = text.strip()
-    # print(repr(text)) # DEBUG
-
-    return f'📖 **Etymology of "{word}":** {text}'
+    return etymology, audio_url
 
 
 def get_ngrams_data(words):
@@ -158,50 +169,8 @@ def generate_chart(ngram_data, words):
     return buf
 
 
-def get_wiktionary_labels(word):
-    """Fetch regional/usage labels from Wiktionary for a word."""
-    headers = {'User-Agent': 'WOTDCommonalityBot/1.0 (educational Discord bot; contact via GitHub)'}
-    url = f"https://en.wiktionary.org/w/api.php?action=parse&page={quote(word)}&prop=wikitext&format=json"
-    response = requests.get(url, headers=headers)
-    response.raise_for_status()
-    data = response.json()
-    
-    if 'parse' not in data:
-        return None
-    
-    wikitext = data['parse']['wikitext']['*']
-    
-    # Find all {{lb|en|...}} labels in the English section only
-    # First, extract just the English section
-    english_match = re.search(r'==English==\n(.*?)(?:\n==(?!=)|\Z)', wikitext, re.DOTALL)
-    if not english_match:
-        return None
-    english_section = english_match.group(1)
-
-    # Extract all lb|en templates (will contain regional keywords)
-    lb_matches = re.findall(r'\{\{lb\|en\|(.*?)\}\}', english_section)
-
-    # Regional labels we care about
-    # NOTE: Could also parse for "slang" and "obsolete" in this same way, but not desired at the moment
-    regional_keywords = {
-        'Australia', 'Australian', 'New Zealand', 'British', 
-        'UK', 'US', 'American', 'Canada', 'Canadian', 
-        'Ireland', 'Irish', 'Scotland', 'Scottish'
-    }
-    
-    found_regions = []
-    for match in lb_matches:
-        parts = match.split('|')
-        for part in parts:
-            part = part.strip()
-            if part in regional_keywords and part not in found_regions:
-                found_regions.append(part)
-    
-    return found_regions if found_regions else None
-
-
-def get_pronunciation(word):
-    """Fetch IPA pronunciation and MW audio URL for a word."""
+def get_wiktionary_data(word):
+    """Fetch regional/usage labels and IPA pronunciation from Wiktionary."""
     headers = {'User-Agent': 'WOTDCommonalityBot/1.0 (educational Discord bot; contact via GitHub)'}
     url = f"https://en.wiktionary.org/w/api.php?action=parse&page={quote(word)}&prop=wikitext&format=json"
     response = requests.get(url, headers=headers)
@@ -219,37 +188,27 @@ def get_pronunciation(word):
         return None, None
     english_section = english_match.group(1)
 
-    # Extract IPA — matches {{IPA|en|/...
+    # Extract IPA
     ipa_match = re.search(r'\{\{IPA\|en\|(/[^/]+/)', english_section)
-    # ipa_region = re.search(r'\|a=([^}|]+)', english_section)
     ipa = ipa_match.group(1) if ipa_match else None
 
-    # Extract MW audio URL from dictionary API
-    audio_url = None
-    api_url = f"https://www.dictionaryapi.com/api/v3/references/collegiate/json/{quote(word)}?key={MW_DI_API_KEY}"
-    api_response = requests.get(api_url)
-    if api_response.ok:
-        api_data = api_response.json()
-        if api_data and isinstance(api_data[0], dict):
-            prs = api_data[0].get('hwi', {}).get('prs', [])
-            if prs and 'sound' in prs[0]:
-                audio_file = prs[0]['sound']['audio']
-                # MW audio URL construction rules:
-                # - files starting with "bix" go in bix/
-                # - files starting with "gg" go in gg/
-                # - files starting with a number go in number/
-                # - otherwise use first letter as subdirectory
-                if audio_file.startswith('bix'):
-                    subdir = 'bix'
-                elif audio_file.startswith('gg'):
-                    subdir = 'gg'
-                elif audio_file[0].isdigit():
-                    subdir = 'number'
-                else:
-                    subdir = audio_file[0]
-                audio_url = f"https://media.merriam-webster.com/audio/prons/en/us/mp3/{subdir}/{audio_file}.mp3"
+    # Extract regional labels
+    regional_keywords = {
+        'Australia', 'Australian', 'New Zealand', 'British',
+        'UK', 'US', 'American', 'Canada', 'Canadian',
+        'Ireland', 'Irish', 'Scotland', 'Scottish'
+    }
+    lb_matches = re.findall(r'\{\{lb\|en\|(.*?)\}\}', english_section)
+    found_regions = []
+    for match in lb_matches:
+        parts = match.split('|')
+        for part in parts:
+            part = part.strip()
+            if part in regional_keywords and part not in found_regions:
+                found_regions.append(part)
+    regions = found_regions if found_regions else None
 
-    return ipa, audio_url
+    return ipa, regions
 
 
 def build_insight(word, synonyms, ngram_data):
@@ -325,8 +284,8 @@ def main():
         return
 
     display_synonyms, commonality = build_insight(word, synonyms, ngram_data)
-    regions = get_wiktionary_labels(word)
-    ipa, audio_url = get_pronunciation(word)
+    ipa, regions = get_wiktionary_data(word)
+    etymology, audio_url = get_mw_dictionary_data(word)
 
     # Build insight in desired order: pronunciation, audio, commonality, regional note
     insight_parts = []
@@ -344,8 +303,6 @@ def main():
     chart_buf = generate_chart(ngram_data, [word] + display_synonyms)
     if not no_post_mode: post_to_discord(insight, chart_buf)
 
-    # Build and post etymology
-    etymology = get_etymology(word)
     if etymology:
         if not no_post_mode: post_to_discord(etymology, None)
         print(f"Etymology: {etymology}")
