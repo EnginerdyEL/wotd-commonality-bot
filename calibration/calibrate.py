@@ -3,7 +3,6 @@ import requests
 import sys
 sys.path.append('..')
 from bot import get_rarity_label, get_wiktionary_data, ts
-from datetime import datetime
 
 NGRAMS_START_YEAR = 2010
 NGRAMS_END_YEAR = 2019
