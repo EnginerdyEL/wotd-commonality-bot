@@ -2,7 +2,8 @@ import csv
 import requests
 import sys
 sys.path.append('..')
-from bot import get_rarity_label, get_wiktionary_labels
+from bot import get_rarity_label, get_wiktionary_data, ts
+from datetime import datetime
 
 NGRAMS_START_YEAR = 2010
 NGRAMS_END_YEAR = 2019
@@ -28,7 +29,7 @@ def get_all_frequencies(words):
     """Get all frequencies of the words over a calibration time period"""
     ngram_data = get_ngrams_data(words)
     if not ngram_data:
-        print('No Ngrams data found current set.')
+        print(f"[{ts()}] No Ngrams data found current set.")
         return
     frequency_set = []
     for entry in ngram_data:
@@ -42,13 +43,13 @@ def main():
     SPOT_CHECK_WORDS = ['petrichor', 'nappy', 'bludge']
 
     if SPOT_CHECK_MODE:
-        print("Spot check mode:")
+        print(f"[{ts()}] Spot check mode:")
         freq_set = get_all_frequencies(SPOT_CHECK_WORDS)
         for word, freq in zip(SPOT_CHECK_WORDS, freq_set):
             rarity = get_rarity_label(freq)
-            regions = get_wiktionary_labels(word)
+            _, regions = get_wiktionary_data(word)
             region_str = f"[{', '.join(regions)}]" if regions else ""
-            print(f"{word}: {freq:.2e} ({rarity}) {region_str}")
+            print(f"[{ts()}] {word}: {freq:.2e} ({rarity}) {region_str}")
         return
 
     words_very_common = ['the', 'happy', 'house', 'walk', 'money', 'love', 'time', 'good', 'work', 'day']
@@ -65,7 +66,7 @@ def main():
 
     rows = []
     for group_name, words in all_groups:
-        print(f"Fetching ngrams data for: {group_name}")
+        print(f"[{ts()}] Fetching ngrams data for: {group_name}")
         frequency_set = get_all_frequencies(words)
         if not frequency_set:
             continue
@@ -78,14 +79,14 @@ def main():
         writer.writeheader()
         writer.writerows(rows)
 
-    print(f"\nResults written to results.csv ({len(rows)} words)")
+    print(f"\n[{ts()}] Results written to results.csv ({len(rows)} words)")
 
     # Print summary per group
     for group_name, words in all_groups:
         group_rows = [r for r in rows if r['group'] == group_name]
         if group_rows:
             freqs = [r['frequency'] for r in group_rows]
-            print(f"{group_name}: min={min(freqs):.2e}, max={max(freqs):.2e}")
+            print(f"[{ts()}] {group_name}: min={min(freqs):.2e}, max={max(freqs):.2e}")
 
 
 if __name__ == "__main__":

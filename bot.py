@@ -4,6 +4,7 @@ import re
 import requests
 import matplotlib.pyplot as plt
 import xml.etree.ElementTree as ET
+from datetime import datetime
 from dotenv import load_dotenv
 from urllib.parse import quote
 
@@ -16,6 +17,11 @@ DISCORD_WEBHOOK_URL = os.environ["DISCORD_WEBHOOK_URL"]
 
 NGRAMS_START_YEAR = 1900
 NGRAMS_END_YEAR = 2019
+
+
+def ts():
+    """Return current timestamp string for logging."""
+    return (f"{datetime.now():%Y-%m-%d %H:%M:%S.%f}")[:-5]
 
 
 def get_wotd():
@@ -31,7 +37,7 @@ def get_wotd():
     first_item = root.find(".//item")
     word = first_item.find("title").text.strip().lower()
     # word = "shenanigans" # DEBUG
-    print(f"WOTD from RSS: {word}")
+    print(f"[{ts()}] WOTD from RSS: {word}")
 
     # Step 2: Look up synonyms via the Collegiate Thesaurus API
     api_url = f"https://www.dictionaryapi.com/api/v3/references/thesaurus/json/{quote(word)}?key={MW_TH_API_KEY}"
@@ -218,7 +224,7 @@ def build_insight(word, synonyms, ngram_data):
 
     # Find the 3 most common synonyms
     display_synonyms = sorted(synonyms, key=lambda s: get_recent_frequency(ngram_data, s), reverse=True)[:3]
-    print(f"Display Synonyms: {display_synonyms}") # DEBUG
+    print(f"[{ts()}] Display Synonyms: {display_synonyms}") # DEBUG
     
     # Find the most common synonym among display_synonyms for the insight text
     best_syn = max(display_synonyms, key=lambda s: get_recent_frequency(ngram_data, s))
@@ -254,14 +260,14 @@ def post_to_discord(insight, chart_buf):
 
 
 def main():
-    print("Fetching Word of the Day and posting to Discord")
+    print(f"[{ts()}] Fetching Word of the Day and posting to Discord")
     no_post_mode = False  # DEBUG: set to True to run without posting to Discord
     if not no_post_mode: post_to_discord('https://www.merriam-webster.com/word-of-the-day', None)
     word, synonyms = get_wotd()
-    print(f"Word: {word}, Synonyms: {synonyms}")
+    # print(f"[{ts()}] Word: {word}, Synonyms: {synonyms}") # DEBUG
 
     if not synonyms:
-        print("No synonyms found, cannot compare.")
+        print(f"[{ts()}] No synonyms found, cannot compare.")
         ngram_data = get_ngrams_data([word])
         if ngram_data:
             chart_buf = generate_chart(ngram_data, [word])
@@ -270,17 +276,17 @@ def main():
             if not no_post_mode: post_to_discord(f'"{word}" is {rarity}. No thesaurus entry found — showing frequency over time only.', chart_buf)
         else:
             if not no_post_mode: post_to_discord(f'No thesaurus entry found for "{word}" — commonality data unavailable for today\'s word.', None)
-        print("Posted to Discord successfully.")
+        print(f"[{ts()}] Posted to Discord successfully.")
         return
 
     words = [word] + synonyms
-    print(f"Fetching Ngrams data for: {words}")
+    print(f"[{ts()}] Fetching Ngrams data for: {words}")
     ngram_data = get_ngrams_data(words)
 
     if not ngram_data:
-        print(f'No Ngrams data found for "{words}", cannot compare.')
+        print(f"[{ts()}] No Ngrams data found for {words}, cannot compare.")
         if not no_post_mode: post_to_discord(f'Not enough data to calculate commonality for "{word}".', None)
-        print("Posted to Discord successfully.")
+        print(f"[{ts()}] Posted to Discord successfully.")
         return
 
     display_synonyms, commonality = build_insight(word, synonyms, ngram_data)
@@ -299,19 +305,19 @@ def main():
         insight_parts.append(f"🌏 Regional note: primarily used in {', '.join(regions)}")
     
     insight = "\n".join(insight_parts)
-    print(f"Insight: {insight}")
+    print(f"[{ts()}] Insight: {insight}")
 
     chart_buf = generate_chart(ngram_data, [word] + display_synonyms)
     if not no_post_mode: post_to_discord(insight, chart_buf)
 
     if etymology:
         if not no_post_mode: post_to_discord(etymology, None)
-        print(f"Etymology: {etymology}")
+        print(f"[{ts()}] Etymology: {etymology}")
     else:
         if not no_post_mode: post_to_discord(f'📖 No etymology data found for "{word}".', None)
-        print(f'No etymology data found for "{word}".')
+        print(f"[{ts()}] No etymology data found for {word}.")
 
-    print("Posted to Discord successfully.")
+    print(f"[{ts()}] Posted to Discord successfully.")
 
 
 if __name__ == "__main__":
