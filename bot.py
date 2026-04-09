@@ -32,10 +32,10 @@ def get_wotd():
     response.raise_for_status()
 
     # Parse the word from the RSS XML. The first item in the feed is today's word
-    # root = ET.fromstring(response.content)
-    # first_item = root.find(".//item")
-    # word = first_item.find("title").text.strip().lower()
-    word = "almond" # DEBUG
+    root = ET.fromstring(response.content)
+    first_item = root.find(".//item")
+    word = first_item.find("title").text.strip().lower()
+    # word = "almond" # DEBUG
     print(f"[{ts()}] WOTD from RSS: {word}")
 
     # Step 2: Look up synonyms via the Collegiate Thesaurus API
