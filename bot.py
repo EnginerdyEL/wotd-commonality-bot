@@ -301,7 +301,7 @@ def main():
                 insight_parts.append(f"🔊 Pronunciation: {ipa}  🎵  [Audio Example]({audio_urls[0]})")
             else:
                 audio_links = "  ".join([f"🎵  [Audio Example {i+1}]({url})" for i, url in enumerate(audio_urls)])
-                insight_parts.append(f"🔊 Pronunciation: {ipa}{audio_links}")
+                insight_parts.append(f"🔊 Pronunciation: {ipa}  {audio_links}")
         else:
             insight_parts.append(f"🔊 Pronunciation: {ipa}")
 
