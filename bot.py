@@ -31,12 +31,11 @@ def get_wotd():
     response = requests.get(rss_url)
     response.raise_for_status()
 
-    # Parse the word from the RSS XML
-    root = ET.fromstring(response.content)
-    # The first item in the feed is today's word
-    first_item = root.find(".//item")
-    word = first_item.find("title").text.strip().lower()
-    # word = "shenanigans" # DEBUG
+    # Parse the word from the RSS XML. The first item in the feed is today's word
+    # root = ET.fromstring(response.content)
+    # first_item = root.find(".//item")
+    # word = first_item.find("title").text.strip().lower()
+    word = "almond" # DEBUG
     print(f"[{ts()}] WOTD from RSS: {word}")
 
     # Step 2: Look up synonyms via the Collegiate Thesaurus API
@@ -90,22 +89,23 @@ def get_mw_dictionary_data(word):
             text = text.strip()
             etymology = f'📖 **Etymology of "{word}":** {text}'
 
-    # Extract audio URL
-    audio_url = None
+    # Extract audio URLs (may have multiple pronunciations)
+    audio_urls = []
     prs = entry.get('hwi', {}).get('prs', [])
-    if prs and 'sound' in prs[0]:
-        audio_file = prs[0]['sound']['audio']
-        if audio_file.startswith('bix'):
-            subdir = 'bix'
-        elif audio_file.startswith('gg'):
-            subdir = 'gg'
-        elif audio_file[0].isdigit():
-            subdir = 'number'
-        else:
-            subdir = audio_file[0]
-        audio_url = f"https://media.merriam-webster.com/audio/prons/en/us/mp3/{subdir}/{audio_file}.mp3"
+    for pr in prs:
+        if 'sound' in pr:
+            audio_file = pr['sound']['audio']
+            if audio_file.startswith('bix'):
+                subdir = 'bix'
+            elif audio_file.startswith('gg'):
+                subdir = 'gg'
+            elif audio_file[0].isdigit():
+                subdir = 'number'
+            else:
+                subdir = audio_file[0]
+            audio_urls.append(f"https://media.merriam-webster.com/audio/prons/en/us/mp3/{subdir}/{audio_file}.mp3")
 
-    return etymology, audio_url
+    return etymology, audio_urls if audio_urls else None    # Extract audio URL
 
 
 def get_ngrams_data(words):
@@ -266,6 +266,7 @@ def main():
     word, synonyms = get_wotd()
     # print(f"[{ts()}] Word: {word}, Synonyms: {synonyms}") # DEBUG
 
+    chart_buf = None
     if not synonyms:
         print(f"[{ts()}] No synonyms found, cannot compare.")
         ngram_data = get_ngrams_data([word])
@@ -273,41 +274,45 @@ def main():
             chart_buf = generate_chart(ngram_data, [word])
             wotd_freq = get_recent_frequency(ngram_data, word)
             rarity = get_rarity_label(wotd_freq)
-            if not no_post_mode: post_to_discord(f'"{word}" is {rarity}. No thesaurus entry found — showing frequency over time only.', chart_buf)
+            commonality = '"' + word + '" is ' + rarity + '. No thesaurus entry found — showing frequency over time only.'
         else:
-            if not no_post_mode: post_to_discord(f'No thesaurus entry found for "{word}" — commonality data unavailable for today\'s word.', None)
-        print(f"[{ts()}] Posted to Discord successfully.")
-        return
+            commonality = 'No thesaurus entry found for' + word + ' — commonality data unavailable for today\'s word.'
+    else:
+        words = [word] + synonyms
+        print(f"[{ts()}] Fetching Ngrams data for: {words}")
+        ngram_data = get_ngrams_data(words)
 
-    words = [word] + synonyms
-    print(f"[{ts()}] Fetching Ngrams data for: {words}")
-    ngram_data = get_ngrams_data(words)
+        if not ngram_data:
+            print(f"[{ts()}] No Ngrams data found for {words}, cannot compare.")
+            if not no_post_mode: post_to_discord(f'Not enough data to calculate commonality for "{word}".', None)
+            print(f"[{ts()}] Posted to Discord successfully.")
+        else:
+            display_synonyms, commonality = build_insight(word, synonyms, ngram_data)
+            chart_buf = generate_chart(ngram_data, [word] + display_synonyms)
 
-    if not ngram_data:
-        print(f"[{ts()}] No Ngrams data found for {words}, cannot compare.")
-        if not no_post_mode: post_to_discord(f'Not enough data to calculate commonality for "{word}".', None)
-        print(f"[{ts()}] Posted to Discord successfully.")
-        return
-
-    display_synonyms, commonality = build_insight(word, synonyms, ngram_data)
     ipa, regions = get_wiktionary_data(word)
-    etymology, audio_url = get_mw_dictionary_data(word)
+    etymology, audio_urls = get_mw_dictionary_data(word)
 
     # Build insight in desired order: pronunciation, audio, commonality, regional note
     insight_parts = []
     if ipa:
-        if audio_url:
-            insight_parts.append(f"🔊 Pronunciation: {ipa}  🎵  [Audio Example]({audio_url})")
+        if audio_urls:
+            if len(audio_urls) == 1:
+                insight_parts.append(f"🔊 Pronunciation: {ipa}  🎵  [Audio Example]({audio_urls[0]})")
+            else:
+                audio_links = "  ".join([f"🎵  [Audio Example {i+1}]({url})" for i, url in enumerate(audio_urls)])
+                insight_parts.append(f"🔊 Pronunciation: {ipa}{audio_links}")
         else:
             insight_parts.append(f"🔊 Pronunciation: {ipa}")
+
     insight_parts.append(commonality)
+
     if regions:
         insight_parts.append(f"🌏 Regional note: primarily used in {', '.join(regions)}")
     
     insight = "\n".join(insight_parts)
     print(f"[{ts()}] Insight: {insight}")
 
-    chart_buf = generate_chart(ngram_data, [word] + display_synonyms)
     if not no_post_mode: post_to_discord(insight, chart_buf)
 
     if etymology:
