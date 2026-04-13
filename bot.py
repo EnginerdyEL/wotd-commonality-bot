@@ -35,7 +35,7 @@ def get_wotd():
     root = ET.fromstring(response.content)
     first_item = root.find(".//item")
     word = first_item.find("title").text.strip().lower()
-    # word = "almond" # DEBUG
+    # word = "facetious" # DEBUG
     print(f"[{ts()}] WOTD from RSS: {word}")
 
     # Step 2: Look up synonyms via the Collegiate Thesaurus API
@@ -179,42 +179,47 @@ def get_wiktionary_data(word):
     """Fetch regional/usage labels and IPA pronunciation from Wiktionary."""
     headers = {'User-Agent': 'WOTDCommonalityBot/1.0 (educational Discord bot; contact via GitHub)'}
     url = f"https://en.wiktionary.org/w/api.php?action=parse&page={quote(word)}&prop=wikitext&format=json"
-    response = requests.get(url, headers=headers)
-    response.raise_for_status()
-    data = response.json()
+    try:
+        response = requests.get(url, headers=headers, timeout=5)
+        response.raise_for_status()
+        data = response.json()
 
-    if 'parse' not in data:
+        if 'parse' not in data:
+            return None, None
+
+        wikitext = data['parse']['wikitext']['*']
+
+        # Extract English section only
+        english_match = re.search(r'==English==\n(.*?)(?:\n==(?!=)|\Z)', wikitext, re.DOTALL)
+        if not english_match:
+            return None, None
+        english_section = english_match.group(1)
+
+        # Extract IPA
+        ipa_match = re.search(r'\{\{IPA\|en\|(/[^/]+/)', english_section)
+        ipa = ipa_match.group(1) if ipa_match else None
+        if not ipa:
+            print(f"[{ts()}] Warning: No IPA found for {word}")
+
+        # Extract regional labels
+        regional_keywords = {
+            'Australia', 'Australian', 'New Zealand', 'British',
+            'UK', 'US', 'American', 'Canada', 'Canadian',
+            'Ireland', 'Irish', 'Scotland', 'Scottish'
+        }
+        lb_matches = re.findall(r'\{\{lb\|en\|(.*?)\}\}', english_section)
+        found_regions = []
+        for match in lb_matches:
+            parts = match.split('|')
+            for part in parts:
+                part = part.strip()
+                if part in regional_keywords and part not in found_regions:
+                    found_regions.append(part)
+        regions = found_regions if found_regions else None
+        return ipa, regions
+    except requests.RequestException as e:
+        print(f"[{ts()}] Wiktionary lookup failed for {word}: {e}")
         return None, None
-
-    wikitext = data['parse']['wikitext']['*']
-
-    # Extract English section only
-    english_match = re.search(r'==English==\n(.*?)(?:\n==(?!=)|\Z)', wikitext, re.DOTALL)
-    if not english_match:
-        return None, None
-    english_section = english_match.group(1)
-
-    # Extract IPA
-    ipa_match = re.search(r'\{\{IPA\|en\|(/[^/]+/)', english_section)
-    ipa = ipa_match.group(1) if ipa_match else None
-
-    # Extract regional labels
-    regional_keywords = {
-        'Australia', 'Australian', 'New Zealand', 'British',
-        'UK', 'US', 'American', 'Canada', 'Canadian',
-        'Ireland', 'Irish', 'Scotland', 'Scottish'
-    }
-    lb_matches = re.findall(r'\{\{lb\|en\|(.*?)\}\}', english_section)
-    found_regions = []
-    for match in lb_matches:
-        parts = match.split('|')
-        for part in parts:
-            part = part.strip()
-            if part in regional_keywords and part not in found_regions:
-                found_regions.append(part)
-    regions = found_regions if found_regions else None
-
-    return ipa, regions
 
 
 def build_insight(word, synonyms, ngram_data):
