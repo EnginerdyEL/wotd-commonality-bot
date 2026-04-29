@@ -6,29 +6,60 @@ A Discord automation that posts daily insights about the Merriam-Webster Word of
 
 Every day, Wordy automatically:
 1. Posts a link to the Merriam-Webster Word of the Day
-2. Fetches the word's synonyms from the MW Collegiate Thesaurus API
-3. Looks up and shares pronunciation in IPA format via Wiktionary API
-4. Looks up and shares pronunciation in audio format via MW Collegiate Dictionary API
-5. Looks up frequency data for the word and its common synonyms via Google Ngrams
-6. Posts an insight, examples below
-7. Posts a frequency-over-time chart showing the word and synonyms plotted from 1900–2019
-8. Posts the etymology from the MW Collegiate Dictionary API
+2. Posts the word, part of speech, and primary definition from MW Dictionary API
+3. Fetches the word's synonyms from the MW Collegiate Thesaurus API
+4. Looks up and shares pronunciation in IPA format via Wiktionary API
+5. Looks up and shares pronunciation in audio format via MW Collegiate Dictionary API
+6. Extracts and shares an example sentence from MW Dictionary API
+7. Looks up frequency data for the word and its common synonyms via Google Ngrams
+8. Posts an insight with frequency tier emoji, examples below
+9. Posts a frequency-over-time chart showing the word and synonyms plotted from 1900–2019
+10. Posts the etymology from the MW Collegiate Dictionary API
 
 If no thesaurus entry exists for the word, it posts the rarity label and frequency chart for the word alone.
 
 ## Example Insight output
 
-> 🔊 Pronunciation: /ʃɪˈnæn.ɪ.ɡənz/
-> 🎵 Audio: https://media.merriam-webster.com/audio/prons/en/us/mp3/s/shenan01.mp3
-> "shenanigans" is uncommon and 9.7x less common than "mischief" in literature.
+> **Speculate** — *verb* — to meditate on or ponder a subject
+> 
+> 🔊 Pronunciation: /ˈspek.jə.leɪt/  🎵 [Audio Example](https://...)
+> 
+> 💬 Example: "speculates whether it will rain all vacation"
+>
+> 🟡 "speculate" is moderately common and 15.5x less common than "guess" in literature.
 
-> "adroit" is uncommon and 75.1x less common than "expert" in literature.
+> **Adroit** — *adjective* — having or showing skill, cleverness, or resourcefulness in handling situations
+>
+> 🔊 Pronunciation: /əˈdɹɔɪt/  🎵 [Audio Example](https://...)
+>
+> 💬 Example: "an adroit negotiator"
+>
+> 🟡 "adroit" is uncommon and 75.1x less common than "expert" in literature.
 
-> "erin go bragh" is very rare. No thesaurus entry found — showing frequency over time only.
+> **Evanescent** — *adjective* — tending to vanish like vapor
+>
+> 🟡 "evanescent" is uncommon and 79.7x less common than "brief" in literature.
 
 ## Pronunciation
 
 Pronunciation via IPA is pulled from Wiktionary, and pronunciation audio sample is pulled from MW Dictionary
+
+## Word Definition
+
+The word, part of speech, and primary definition are extracted from the MW Collegiate Dictionary API. This ensures learners get the authoritative first definition without needing to click the Merriam-Webster link.
+
+## Example Sentence
+
+An example sentence is extracted from the MW Collegiate Dictionary API, showing the word used in context. This provides immediate, learner-friendly usage context.
+
+## Frequency Tier Emoji
+
+A visual rarity indicator precedes the frequency comparison:
+- 🟢 Common or very common
+- 🟡 Moderately common or uncommon  
+- 🔴 Rare or very rare
+
+This allows learners to quickly gauge word rarity at a glance.
 
 ## Rarity tiers
 
@@ -131,9 +162,8 @@ To quickly check specific words without overwriting `results.csv`, set `SPOT_CHE
 ### Near term
 
 - Fix condition where synonym is so relatively common that it makes the wotd appear as a flatline on the chart. Perhaps only plot when within some factor of each other
-- Clean up etymology markup parsing using `mwparserfromhell` library instead of unreliable regex chains
+- Clean up definition, example, and etymology markup parsing using `mwparserfromhell` library instead of unreliable regex chains
 - Delay the Github Action so that if the MW embed is late or the Discord embed is cached incorrectly, then the wotd embed is more likely to be correct
-- Add the word itself and a short definition, especially in the case where the embed is wrong
 
 ### Longer term
 
