@@ -24,6 +24,22 @@ def ts():
     return (f"{datetime.now():%Y-%m-%d %H:%M:%S.%f}")[:-5]
 
 
+def get_frequency_tier_emoji(frequency):
+    """Return a frequency tier emoji based on rarity label."""
+    if frequency >= 1e-4:
+        return "🟢"  # very common
+    elif frequency >= 1e-5:
+        return "🟢"  # common
+    elif frequency >= 1e-6:
+        return "🟡"  # moderately common
+    elif frequency >= 1e-7:
+        return "🟡"  # uncommon
+    elif frequency >= 1e-8:
+        return "🔴"  # rare
+    else:
+        return "🔴"  # very rare
+
+
 def get_wotd():
     """Fetch the Word of the Day from MW RSS feed, then look up synonyms via the API."""
     # Step 1: Get the word from the RSS feed
@@ -60,16 +76,88 @@ def get_wotd():
 
 
 def get_mw_dictionary_data(word):
-    """Fetch etymology and audio pronunciation URL from the MW Collegiate Dictionary API."""
+    """Fetch definition, part of speech, etymology, example sentence, and audio pronunciation URL from the MW Collegiate Dictionary API."""
     api_url = f"https://www.dictionaryapi.com/api/v3/references/collegiate/json/{quote(word)}?key={MW_DI_API_KEY}"
     response = requests.get(api_url)
     response.raise_for_status()
     data = response.json()
 
     if not data or not isinstance(data[0], dict):
-        return None, None
+        return None, None, None, None, None
 
     entry = data[0]
+    
+    # DEBUG: Print the entry structure to understand it better
+    # print(f"[{ts()}] DEBUG: Entry keys: {entry.keys()}")
+    # if 'def' in entry:
+    #     print(f"[{ts()}] DEBUG: def structure: {entry['def']}")
+
+    # Extract part of speech
+    pos = entry.get('fl', 'word')  # 'fl' is functional label (part of speech)
+
+    # Extract definition (first sense, first definition)
+    definition = None
+    defs = entry.get('def', [])
+    if defs:
+        # Navigate the nested structure more carefully
+        for def_block in defs:
+            sseq = def_block.get('sseq', [])
+            for sense_group in sseq:
+                if isinstance(sense_group, list):
+                    for sense_item in sense_group:
+                        # sense_item is a list like ['sense', {sense_data}]
+                        if isinstance(sense_item, list) and len(sense_item) >= 2:
+                            sense_data = sense_item[1]  # Get the dict part
+                            if isinstance(sense_data, dict):
+                                # Look for 'dt' (definition text)
+                                dt = sense_data.get('dt', [])
+                                if dt:
+                                    for dt_item in dt:
+                                        if isinstance(dt_item, list) and len(dt_item) >= 2:
+                                            if dt_item[0] == 'text':
+                                                definition = dt_item[1]
+                                                break
+                                if definition:
+                                    break
+                if definition:
+                    break
+            if definition:
+                break
+    
+    # Clean up definition markup if found
+    if definition:
+        definition = re.sub(r'\{it\}(.*?)\{/it\}', r'*\1*', definition)
+        definition = re.sub(r'\{[^}]+\}', '', definition)
+        definition = definition.strip()
+        # print(f"[{ts()}] DEBUG: Extracted definition: {definition}")
+    else:
+        print(f"[{ts()}] WARNING: Could not extract definition for {word}")
+
+    # Extract first example sentence
+    example_sentence = None
+    for def_block in defs:
+        sseq = def_block.get('sseq', [])
+        for sense in sseq:
+            # sseq is a list of lists; each inner list contains sense entries
+            if isinstance(sense, list):
+                for sense_entry in sense:
+                    if isinstance(sense_entry, dict):
+                        # Look for 'vis' (verbal illustrations/examples)
+                        vis = sense_entry.get('vis', [])
+                        if vis and len(vis) > 0:
+                            # Get the first example
+                            first_example = vis[0]
+                            if isinstance(first_example, dict) and 'text' in first_example:
+                                example_sentence = first_example['text']
+                                # Clean up markup
+                                example_sentence = re.sub(r'\{it\}(.*?)\{/it\}', r'*\1*', example_sentence)
+                                example_sentence = re.sub(r'\{[^}]+\}', '', example_sentence)
+                                example_sentence = example_sentence.strip()
+                                break
+                if example_sentence:
+                    break
+        if example_sentence:
+            break
 
     # Extract etymology
     etymology = None
@@ -105,7 +193,7 @@ def get_mw_dictionary_data(word):
                 subdir = audio_file[0]
             audio_urls.append(f"https://media.merriam-webster.com/audio/prons/en/us/mp3/{subdir}/{audio_file}.mp3")
 
-    return etymology, audio_urls if audio_urls else None    # Extract audio URL
+    return pos, definition, example_sentence, etymology, audio_urls if audio_urls else None
 
 
 def get_ngrams_data(words):
@@ -229,7 +317,7 @@ def build_insight(word, synonyms, ngram_data):
 
     # Find the 3 most common synonyms
     display_synonyms = sorted(synonyms, key=lambda s: get_recent_frequency(ngram_data, s), reverse=True)[:3]
-    print(f"[{ts()}] Display Synonyms: {display_synonyms}") # DEBUG
+    print(f"[{ts()}] Display Synonyms: {display_synonyms}")
     
     # Find the most common synonym among display_synonyms for the insight text
     best_syn = max(display_synonyms, key=lambda s: get_recent_frequency(ngram_data, s))
@@ -240,17 +328,18 @@ def build_insight(word, synonyms, ngram_data):
         return display_synonyms, "Not enough data to calculate commonality."
 
     rarity = get_rarity_label(wotd_freq)
+    emoji = get_frequency_tier_emoji(wotd_freq)
 
     if wotd_freq >= best_syn_freq:
         ratio = wotd_freq / best_syn_freq
         if ratio < 1.5:
-            return(display_synonyms,f'"{word}" is {rarity} and about as common as "{best_syn}" in literature.')
-        return(display_synonyms,f'"{word}" is {rarity} and {ratio:.1f}x more common than "{best_syn}" in literature.')
+            return(display_synonyms,f'{emoji} "{word}" is {rarity} and about as common as "{best_syn}" in literature.')
+        return(display_synonyms,f'{emoji} "{word}" is {rarity} and {ratio:.1f}x more common than "{best_syn}" in literature.')
     else:
         ratio = best_syn_freq / wotd_freq
         if ratio < 1.5:
-            return(display_synonyms,f'"{word}" is {rarity} and about as common as "{best_syn}" in literature.')
-        return(display_synonyms,f'"{word}" is {rarity} and {ratio:.1f}x less common than "{best_syn}" in literature.')
+            return(display_synonyms,f'{emoji} "{word}" is {rarity} and about as common as "{best_syn}" in literature.')
+        return(display_synonyms,f'{emoji} "{word}" is {rarity} and {ratio:.1f}x less common than "{best_syn}" in literature.')
 
 
 def post_to_discord(insight, chart_buf):
@@ -279,9 +368,10 @@ def main():
             chart_buf = generate_chart(ngram_data, [word])
             wotd_freq = get_recent_frequency(ngram_data, word)
             rarity = get_rarity_label(wotd_freq)
-            commonality = '"' + word + '" is ' + rarity + '. No thesaurus entry found — showing frequency over time only.'
+            emoji = get_frequency_tier_emoji(wotd_freq)
+            commonality = f'{emoji} "{word}" is {rarity}. No thesaurus entry found — showing frequency over time only.'
         else:
-            commonality = 'No thesaurus entry found for' + word + ' — commonality data unavailable for today\'s word.'
+            commonality = f'No thesaurus entry found for "{word}" — commonality data unavailable for today\'s word.'
     else:
         words = [word] + synonyms
         print(f"[{ts()}] Fetching Ngrams data for: {words}")
@@ -296,10 +386,17 @@ def main():
             chart_buf = generate_chart(ngram_data, [word] + display_synonyms)
 
     ipa, regions = get_wiktionary_data(word)
-    etymology, audio_urls = get_mw_dictionary_data(word)
+    pos, definition, example_sentence, etymology, audio_urls = get_mw_dictionary_data(word)
 
-    # Build insight in desired order: pronunciation, audio, commonality, regional note
+    # Build insight in desired order: word+definition, pronunciation, example sentence, commonality, regional note
     insight_parts = []
+    
+    # Always add word + part of speech + definition
+    if definition:
+        insight_parts.append(f"**{word.capitalize()}** — *{pos}* — {definition}")
+    else:
+        insight_parts.append(f"**{word.capitalize()}** — *{pos}*")
+
     if ipa:
         if audio_urls:
             if len(audio_urls) == 1:
@@ -309,6 +406,10 @@ def main():
                 insight_parts.append(f"🔊 Pronunciation: {ipa}  {audio_links}")
         else:
             insight_parts.append(f"🔊 Pronunciation: {ipa}")
+
+    # Add example sentence if available
+    if example_sentence:
+        insight_parts.append(f"💬 Example: \"{example_sentence}\"")
 
     insight_parts.append(commonality)
 

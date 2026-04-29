@@ -133,7 +133,7 @@ To quickly check specific words without overwriting `results.csv`, set `SPOT_CHE
 - Fix condition where synonym is so relatively common that it makes the wotd appear as a flatline on the chart. Perhaps only plot when within some factor of each other
 - Clean up etymology markup parsing using `mwparserfromhell` library instead of unreliable regex chains
 - Delay the Github Action so that if the MW embed is late or the Discord embed is cached incorrectly, then the wotd embed is more likely to be correct
-- Add the word itself and a short definition, especially in the case the embed is wrong
+- Add the word itself and a short definition, especially in the case where the embed is wrong
 
 ### Longer term
 
