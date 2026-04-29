@@ -50,7 +50,7 @@ The word, part of speech, and primary definition are extracted from the MW Colle
 
 ## Example Sentence
 
-An example sentence is extracted from the MW Collegiate Dictionary API, showing the word used in context. This provides immediate, learner-friendly usage context.
+An example sentence is extracted from the MW Collegiate Dictionary API when available. This provides immediate, learner-friendly usage context. Note that example quality varies—some clearly demonstrate the definition, while others simply show the word in use.
 
 ## Frequency Tier Emoji
 
@@ -161,6 +161,7 @@ To quickly check specific words without overwriting `results.csv`, set `SPOT_CHE
 
 ### Near term
 
+- Improve example sentences: either extract multiple examples and pick the best, or use Claude to generate more illustrative examples
 - Fix condition where synonym is so relatively common that it makes the wotd appear as a flatline on the chart. Perhaps only plot when within some factor of each other
 - Clean up definition, example, and etymology markup parsing using `mwparserfromhell` library instead of unreliable regex chains
 - Delay the Github Action so that if the MW embed is late or the Discord embed is cached incorrectly, then the wotd embed is more likely to be correct
