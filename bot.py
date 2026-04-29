@@ -133,31 +133,55 @@ def get_mw_dictionary_data(word):
     else:
         print(f"[{ts()}] WARNING: Could not extract definition for {word}")
 
-    # Extract first example sentence
+    # Extract first example sentence - search across ALL def_blocks and senses
     example_sentence = None
+    defs = entry.get('def', [])
     for def_block in defs:
-        sseq = def_block.get('sseq', [])
-        for sense in sseq:
-            # sseq is a list of lists; each inner list contains sense entries
-            if isinstance(sense, list):
-                for sense_entry in sense:
-                    if isinstance(sense_entry, dict):
-                        # Look for 'vis' (verbal illustrations/examples)
-                        vis = sense_entry.get('vis', [])
-                        if vis and len(vis) > 0:
-                            # Get the first example
-                            first_example = vis[0]
-                            if isinstance(first_example, dict) and 'text' in first_example:
-                                example_sentence = first_example['text']
-                                # Clean up markup
-                                example_sentence = re.sub(r'\{it\}(.*?)\{/it\}', r'*\1*', example_sentence)
-                                example_sentence = re.sub(r'\{[^}]+\}', '', example_sentence)
-                                example_sentence = example_sentence.strip()
-                                break
-                if example_sentence:
-                    break
         if example_sentence:
             break
+        sseq = def_block.get('sseq', [])
+        for sense_group in sseq:
+            if example_sentence:
+                break
+            if isinstance(sense_group, list):
+                for sense_item in sense_group:
+                    # sense_item is a list like ['sense', {sense_data}]
+                    if isinstance(sense_item, list) and len(sense_item) >= 2:
+                        # Safely get sense_data
+                        if sense_item[0] != 'sense':
+                            continue
+                        sense_data = sense_item[1] if isinstance(sense_item[1], dict) else None
+                        if not sense_data:
+                            continue
+                            
+                        # Look for 'vis' in the dt array
+                        dt = sense_data.get('dt', [])
+                        if dt and isinstance(dt, list):
+                            for dt_item in dt:
+                                if isinstance(dt_item, list) and len(dt_item) >= 2:
+                                    if dt_item[0] != 'vis':
+                                        continue
+                                    vis_list = dt_item[1] if isinstance(dt_item[1], list) else None
+                                    if not vis_list or len(vis_list) == 0:
+                                        continue
+                                    
+                                    # Safely get first example
+                                    first_example = vis_list[0] if isinstance(vis_list[0], dict) else None
+                                    if first_example and 't' in first_example:
+                                        example_sentence = first_example['t']
+                                        # Clean up markup
+                                        example_sentence = re.sub(r'\{it\}(.*?)\{/it\}', r'*\1*', example_sentence)
+                                        example_sentence = re.sub(r'\{wi\}(.*?)\{/wi\}', r'*\1*', example_sentence)
+                                        example_sentence = re.sub(r'\{[^}]+\}', '', example_sentence)
+                                        example_sentence = example_sentence.strip()
+                                        break
+                        if example_sentence:
+                            break
+                    if example_sentence:
+                        break
+    
+    if not example_sentence:
+        print(f"[{ts()}] WARNING: Could not extract example sentence for {word}")
 
     # Extract etymology
     etymology = None
@@ -333,13 +357,13 @@ def build_insight(word, synonyms, ngram_data):
     if wotd_freq >= best_syn_freq:
         ratio = wotd_freq / best_syn_freq
         if ratio < 1.5:
-            return(display_synonyms,f'{emoji} "{word}" is {rarity} and about as common as "{best_syn}" in literature.')
-        return(display_synonyms,f'{emoji} "{word}" is {rarity} and {ratio:.1f}x more common than "{best_syn}" in literature.')
+            return(display_synonyms,f'{emoji} *{word}* is {rarity} and about as common as *{best_syn}* in literature.')
+        return(display_synonyms,f'{emoji} *{word}* is {rarity} and {ratio:.1f}x more common than *{best_syn}* in literature.')
     else:
         ratio = best_syn_freq / wotd_freq
         if ratio < 1.5:
-            return(display_synonyms,f'{emoji} "{word}" is {rarity} and about as common as "{best_syn}" in literature.')
-        return(display_synonyms,f'{emoji} "{word}" is {rarity} and {ratio:.1f}x less common than "{best_syn}" in literature.')
+            return(display_synonyms,f'{emoji} *{word}* is {rarity} and about as common as *{best_syn}* in literature.')
+        return(display_synonyms,f'{emoji} *{word}* is {rarity} and {ratio:.1f}x less common than *{best_syn}* in literature.')
 
 
 def post_to_discord(insight, chart_buf):
@@ -369,9 +393,9 @@ def main():
             wotd_freq = get_recent_frequency(ngram_data, word)
             rarity = get_rarity_label(wotd_freq)
             emoji = get_frequency_tier_emoji(wotd_freq)
-            commonality = f'{emoji} "{word}" is {rarity}. No thesaurus entry found — showing frequency over time only.'
+            commonality = f'{emoji} *{word}* is {rarity}. No thesaurus entry found — showing frequency over time only.'
         else:
-            commonality = f'No thesaurus entry found for "{word}" — commonality data unavailable for today\'s word.'
+            commonality = f'No thesaurus entry found for *{word}* — commonality data unavailable for today\'s word.'
     else:
         words = [word] + synonyms
         print(f"[{ts()}] Fetching Ngrams data for: {words}")
