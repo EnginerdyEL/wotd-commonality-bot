@@ -161,8 +161,8 @@ To quickly check specific words without overwriting `results.csv`, set `SPOT_CHE
 
 ### Near term
 
-- Improve example sentences: either extract multiple examples and pick the best, or use Claude to generate more illustrative examples
 - Fix condition where synonym is so relatively common that it makes the wotd appear as a flatline on the chart. Perhaps only plot when within some factor of each other
+- Improve example sentences: either extract multiple examples and pick the best, or use Claude to generate more illustrative examples
 - Clean up definition, example, and etymology markup parsing using `mwparserfromhell` library instead of unreliable regex chains
 - Delay the Github Action so that if the MW embed is late or the Discord embed is cached incorrectly, then the wotd embed is more likely to be correct
 

@@ -51,7 +51,7 @@ def get_wotd():
     root = ET.fromstring(response.content)
     first_item = root.find(".//item")
     word = first_item.find("title").text.strip().lower()
-    # word = "facetious" # DEBUG
+    # word = "beltane" # DEBUG
     print(f"[{ts()}] WOTD from RSS: {word}")
 
     # Step 2: Look up synonyms via the Collegiate Thesaurus API
@@ -199,10 +199,11 @@ def get_mw_dictionary_data(word):
             text = re.sub(r'\s*\+\s*-\w+[\w\s-]*$', '', text)
             text = re.sub(r'\{[^}]+\}', '', text)
             text = text.strip()
-            etymology = f'📖 **Etymology of "{word}":** {text}'
+            etymology = f'📖 **Etymology of *{word}*:** {text}'
 
-    # Extract audio URLs (may have multiple pronunciations)
+    # Extract audio URLs and pronunciations (may have multiple)
     audio_urls = []
+    prn = []
     prs = entry.get('hwi', {}).get('prs', [])
     for pr in prs:
         if 'sound' in pr:
@@ -216,8 +217,12 @@ def get_mw_dictionary_data(word):
             else:
                 subdir = audio_file[0]
             audio_urls.append(f"https://media.merriam-webster.com/audio/prons/en/us/mp3/{subdir}/{audio_file}.mp3")
+        if 'mw' in pr:
+            mw = pr['mw']
+            prn.append(mw)
+    # print(f"[{ts()}] DEBUG: pronunciation = {prn}")
 
-    return pos, definition, example_sentence, etymology, audio_urls if audio_urls else None
+    return pos, definition, example_sentence, etymology, audio_urls if audio_urls else None, prn if prn else None
 
 
 def get_ngrams_data(words):
@@ -410,7 +415,7 @@ def main():
             chart_buf = generate_chart(ngram_data, [word] + display_synonyms)
 
     ipa, regions = get_wiktionary_data(word)
-    pos, definition, example_sentence, etymology, audio_urls = get_mw_dictionary_data(word)
+    pos, definition, example_sentence, etymology, audio_urls, prn = get_mw_dictionary_data(word)
 
     # Build insight in desired order: word+definition, pronunciation, example sentence, commonality, regional note
     insight_parts = []
@@ -421,15 +426,23 @@ def main():
     else:
         insight_parts.append(f"**{word.capitalize()}** — *{pos}*")
 
-    if ipa:
-        if audio_urls:
-            if len(audio_urls) == 1:
-                insight_parts.append(f"🔊 Pronunciation: {ipa}  🎵  [Audio Example]({audio_urls[0]})")
-            else:
-                audio_links = "  ".join([f"🎵  [Audio Example {i+1}]({url})" for i, url in enumerate(audio_urls)])
-                insight_parts.append(f"🔊 Pronunciation: {ipa}  {audio_links}")
+    ipa_wi_disp = f" {ipa} " if ipa else ''
+    prn_disp = []
+    if prn:
+        if len(prn) == 1:
+            prn_disp = prn[0]
         else:
-            insight_parts.append(f"🔊 Pronunciation: {ipa}")
+            prn_disp = ", ".join(f"{p}" for p in prn)
+    ipa_mw_disp = f" /{prn_disp}/ " if prn_disp else ''
+
+    if audio_urls:
+        if len(audio_urls) == 1:
+            insight_parts.append(f"🔊 Pronunciation:{ipa_wi_disp}{ipa_mw_disp}  🎵  [Audio Example]({audio_urls[0]})")
+        else:
+            audio_links = "  ".join([f"🎵  [Audio Example {i+1}]({url})" for i, url in enumerate(audio_urls)])
+            insight_parts.append(f"🔊 Pronunciation:{ipa_wi_disp}{ipa_mw_disp}  {audio_links}")
+    else:
+        insight_parts.append(f"🔊 Pronunciation:{ipa_wi_disp}{ipa_mw_disp}")
 
     # Add example sentence if available
     if example_sentence:
