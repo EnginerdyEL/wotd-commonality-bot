@@ -426,14 +426,11 @@ def main():
     else:
         insight_parts.append(f"**{word.capitalize()}** — *{pos}*")
 
-    ipa_wi_disp = f" {ipa} " if ipa else ''
     prn_disp = []
     if prn:
-        if len(prn) == 1:
-            prn_disp = prn[0]
-        else:
-            prn_disp = ", ".join(f"{p}" for p in prn)
+        prn_disp = ", ".join(prn) if len(prn) > 1 else prn[0]
     ipa_mw_disp = f" /{prn_disp}/ " if prn_disp else ''
+    ipa_wi_disp = f" {ipa} " if ipa else ''
 
     if audio_urls:
         if len(audio_urls) == 1:
