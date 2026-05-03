@@ -13,7 +13,7 @@ from urllib.parse import quote
 load_dotenv()
 
 # DEBUG Flag: Set to True to show debug output, False to hide
-DEBUG = True
+DEBUG = False
 
 MW_DI_API_KEY = os.environ["MW_DI_API_KEY"]
 MW_TH_API_KEY = os.environ["MW_TH_API_KEY"]
@@ -65,6 +65,11 @@ def get_wotd():
     print(f"[{ts()}] WOTD from RSS: {word}")
 
     # Step 2: Look up synonyms via the Collegiate Thesaurus API
+    synonyms = get_mw_thesaurus_data(word)
+    return word, synonyms
+
+
+def get_mw_thesaurus_data(word):
     api_url = f"https://www.dictionaryapi.com/api/v3/references/thesaurus/json/{quote(word)}?key={MW_TH_API_KEY}"
 
     api_response = requests.get(api_url)
@@ -80,8 +85,7 @@ def get_wotd():
                     if syn.lower() != word.lower() and syn.lower() not in synonyms:
                         synonyms.append(re.sub(r'[()]', '', syn).lower().strip())
             break  # only use first dictionary entry corresponding to definition 1
-
-    return word, synonyms
+    return synonyms
 
 
 def get_mw_dictionary_data(word):

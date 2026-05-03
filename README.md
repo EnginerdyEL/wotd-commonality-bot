@@ -135,6 +135,30 @@ The bot runs via GitHub Actions on a daily cron schedule. Secrets are stored in 
 
 To deploy to a new server, create a Discord webhook in the target channel and update the `DISCORD_WEBHOOK_URL` secret in GitHub.
 
+## Testing
+
+Run the comprehensive unit test suite with:
+```bash
+python3 test_bot.py
+```
+
+This tests dictionary extraction and the full pipeline (thesaurus + ngrams) across 7 carefully chosen edge cases:
+1. Happy path with full data
+2. Accented characters
+3. Rare words with minimal data
+4. Multi-word phrases
+5. Multiple pronunciations/audio files
+6. Words with rich synonym data
+7. Adjectives with thesaurus entries
+
+### Adding more test cases
+
+To add new test cases (e.g., hyphenated words, proper nouns, archaic words), simply add tuples to `TEST_CASES` in `test_bot.py`:
+```python
+("example-word", "Description of what makes this case interesting", True/False),
+```
+Set the third parameter to `True` if you expect the word to have synonyms for pipeline testing.
+
 ## Cron schedule
 
 Scheduled for 5:30 AM UTC daily (`30 5 * * *`), which corresponds to:
@@ -162,7 +186,8 @@ To quickly check specific words without overwriting `results.csv`, set `SPOT_CHE
 ### Near term
 
 - Dev improvement: Make the Debug flag accessible via command-line
-- Fix condition where synonym is so relatively common that it makes the wotd appear as a flatline on the chart. Perhaps only plot when within some factor of each other
+- Quality improvement: Add test cases to `test_bot.py` for edge cases such as words with no example sentence, no etymology, no audio, variant spellings, hyphenated words, or proper nouns
+- Aesthetic: Fix condition where synonym is so relatively common that it makes the wotd appear as a flatline on the chart. Perhaps only plot when within some factor of each other
 - Improve example sentences: either extract multiple examples and pick the best, or use Claude to generate more illustrative examples
 - Clean up definition, example, and etymology markup parsing using `mwparserfromhell` library instead of unreliable regex chains
 - Delay the Github Action so that if the MW embed is late or the Discord embed is cached incorrectly, then the wotd embed is more likely to be correct
