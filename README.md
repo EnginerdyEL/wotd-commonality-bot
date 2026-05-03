@@ -161,7 +161,7 @@ To quickly check specific words without overwriting `results.csv`, set `SPOT_CHE
 
 ### Near term
 
-- Dev improvement: Add a Debug Flag, preferably command-line, to show all Debug output if toggled on, instead of having to uncomment all Debug print lines, then comment them back out before committing
+- Dev improvement: Make the Debug flag accessible via command-line
 - Dev improvement: Add a unit test for happy path and several edge cases, essentially running several words through the functions to flag if any errors were hit, and without posting to Discord
 - Fix condition where synonym is so relatively common that it makes the wotd appear as a flatline on the chart. Perhaps only plot when within some factor of each other
 - Improve example sentences: either extract multiple examples and pick the best, or use Claude to generate more illustrative examples

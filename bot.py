@@ -12,6 +12,9 @@ from urllib.parse import quote
 # Load secrets from .env for local testing
 load_dotenv()
 
+# DEBUG Flag: Set to True to show debug output, False to hide
+DEBUG = True
+
 MW_DI_API_KEY = os.environ["MW_DI_API_KEY"]
 MW_TH_API_KEY = os.environ["MW_TH_API_KEY"]
 DISCORD_WEBHOOK_URL = os.environ["DISCORD_WEBHOOK_URL"]
@@ -23,6 +26,12 @@ NGRAMS_END_YEAR = 2019
 def ts():
     """Return current timestamp string for logging."""
     return (f"{datetime.now():%Y-%m-%d %H:%M:%S.%f}")[:-5]
+
+
+def debug(message):
+    """Print debug message only if DEBUG flag is True."""
+    if DEBUG:
+        print(f"[{ts()}] DEBUG: {message}")
 
 
 def get_frequency_tier_emoji(frequency):
@@ -61,7 +70,6 @@ def get_wotd():
     api_response = requests.get(api_url)
     api_response.raise_for_status()
     data = api_response.json()
-    # print(data) # DEBUG
 
     synonyms = []
     for entry in data:
@@ -82,20 +90,20 @@ def get_mw_dictionary_data(word):
     response = requests.get(api_url)
     response.raise_for_status()
     data = response.json()
-    # print(f"[{ts()}] DEBUG: API response type: {type(data)}, length: {len(data) if isinstance(data, list) else 'N/A'}")
-    # if isinstance(data, list) and len(data) > 0:
-    #     print(f"[{ts()}] DEBUG: First item type: {type(data[0])}")
+    debug(f"API response type: {type(data)}, length: {len(data) if isinstance(data, list) else 'N/A'}")
+    if isinstance(data, list) and len(data) > 0:
+        debug(f"First item type: {type(data[0])}")
 
     if not data or not isinstance(data[0], dict):
-        # print(f"[{ts()}] DEBUG: API returned empty/malformed response for '{word}': {data}")
+        debug(f"API returned empty/malformed response for '{word}': {data}")
         return None, None, None, None, None, None
 
     entry = data[0]
     
     # DEBUG: Print the entry structure to understand it better
-    # print(f"[{ts()}] DEBUG: Entry keys: {entry.keys()}")
-    # if 'def' in entry:
-    #     print(f"[{ts()}] DEBUG: def structure: {entry['def']}")
+    debug(f"Entry keys: {entry.keys()}")
+    if 'def' in entry:
+        debug(f"def structure: {entry['def']}")
 
     # Extract part of speech
     pos = entry.get('fl', 'word')  # 'fl' is functional label (part of speech)
@@ -116,14 +124,14 @@ def get_mw_dictionary_data(word):
                             if isinstance(sense_data, dict):
                                 # Look for 'dt' (definition text)
                                 dt = sense_data.get('dt', [])
-                                # print(f"[{ts()}] DEBUG: Found dt array: {dt}")
+                                debug(f"Found dt array: {dt}")
                                 if dt:
                                     for dt_item in dt:
-                                        # print(f"[{ts()}] DEBUG: dt_item: {dt_item}")
+                                        debug(f"dt_item: {dt_item}")
                                         if isinstance(dt_item, list) and len(dt_item) >= 2:
                                             if dt_item[0] == 'text':
                                                 definition = dt_item[1]
-                                                # print(f"[{ts()}] DEBUG: Extracted text definition: {definition}")
+                                                debug(f"Extracted text definition: {definition}")
                                                 break
                                 if definition:
                                     break
@@ -141,7 +149,7 @@ def get_mw_dictionary_data(word):
         definition = re.sub(r'\{bc\}', '', definition)  # Remove 'begin concept' marker
         definition = re.sub(r'\{[^}]+\}', '', definition)  # Remove any remaining markup
         definition = definition.strip()
-        # print(f"[{ts()}] DEBUG: Cleaned definition: {definition}")
+        debug(f"Cleaned definition: {definition}")
     else:
         print(f"[{ts()}] WARNING: Could not extract definition for {word}")
 
@@ -232,7 +240,7 @@ def get_mw_dictionary_data(word):
         if 'mw' in pr:
             mw = pr['mw']
             prn.append(mw)
-    # print(f"[{ts()}] DEBUG: pronunciation = {prn}")
+    debug(f"pronunciation = {prn}")
 
     return pos, definition, example_sentence, etymology, audio_urls if audio_urls else None, prn if prn else None
 
