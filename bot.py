@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from dotenv import load_dotenv
+from unidecode import unidecode
 from urllib.parse import quote
 
 # Load secrets from .env for local testing
@@ -60,7 +61,7 @@ def get_wotd():
     api_response = requests.get(api_url)
     api_response.raise_for_status()
     data = api_response.json()
-    #print(data) # DEBUG
+    # print(data) # DEBUG
 
     synonyms = []
     for entry in data:
@@ -77,13 +78,17 @@ def get_wotd():
 
 def get_mw_dictionary_data(word):
     """Fetch definition, part of speech, etymology, example sentence, and audio pronunciation URL from the MW Collegiate Dictionary API."""
-    api_url = f"https://www.dictionaryapi.com/api/v3/references/collegiate/json/{quote(word)}?key={MW_DI_API_KEY}"
+    api_url = f"https://www.dictionaryapi.com/api/v3/references/collegiate/json/{quote(unidecode(word))}?key={MW_DI_API_KEY}"
     response = requests.get(api_url)
     response.raise_for_status()
     data = response.json()
+    # print(f"[{ts()}] DEBUG: API response type: {type(data)}, length: {len(data) if isinstance(data, list) else 'N/A'}")
+    # if isinstance(data, list) and len(data) > 0:
+    #     print(f"[{ts()}] DEBUG: First item type: {type(data[0])}")
 
     if not data or not isinstance(data[0], dict):
-        return None, None, None, None, None
+        # print(f"[{ts()}] DEBUG: API returned empty/malformed response for '{word}': {data}")
+        return None, None, None, None, None, None
 
     entry = data[0]
     
@@ -111,11 +116,14 @@ def get_mw_dictionary_data(word):
                             if isinstance(sense_data, dict):
                                 # Look for 'dt' (definition text)
                                 dt = sense_data.get('dt', [])
+                                # print(f"[{ts()}] DEBUG: Found dt array: {dt}")
                                 if dt:
                                     for dt_item in dt:
+                                        # print(f"[{ts()}] DEBUG: dt_item: {dt_item}")
                                         if isinstance(dt_item, list) and len(dt_item) >= 2:
                                             if dt_item[0] == 'text':
                                                 definition = dt_item[1]
+                                                # print(f"[{ts()}] DEBUG: Extracted text definition: {definition}")
                                                 break
                                 if definition:
                                     break
@@ -126,10 +134,14 @@ def get_mw_dictionary_data(word):
     
     # Clean up definition markup if found
     if definition:
+        # Extract words from cross-reference markup like {sx|word||}
+        definition = re.sub(r'\{sx\|([^|]+)\|\|[^}]*\}', r'\1', definition)
+        # Remove other markup
         definition = re.sub(r'\{it\}(.*?)\{/it\}', r'*\1*', definition)
-        definition = re.sub(r'\{[^}]+\}', '', definition)
+        definition = re.sub(r'\{bc\}', '', definition)  # Remove 'begin concept' marker
+        definition = re.sub(r'\{[^}]+\}', '', definition)  # Remove any remaining markup
         definition = definition.strip()
-        # print(f"[{ts()}] DEBUG: Extracted definition: {definition}")
+        # print(f"[{ts()}] DEBUG: Cleaned definition: {definition}")
     else:
         print(f"[{ts()}] WARNING: Could not extract definition for {word}")
 
