@@ -146,13 +146,26 @@ def get_mw_dictionary_data(word):
     
     # Clean up definition markup if found
     if definition:
-        # Extract words from cross-reference markup like {sx|word||}
+        # Merriam-Webster API markup patterns:
+        # {d_link|word|...} — definition link
+        # {sx|word||...} — cross-reference/synonym  
+        # {dxt|word||...} — definition text reference
+        # {it}text{/it} — italics
+        # {bc} — "begin concept" marker
+        # {dx_def}...{/dx_def} — definition cross-reference section
+        
+        # Extract words from link markup BEFORE removing braces
+        definition = re.sub(r'\{d_link\|([^|]+)\|[^}]*\}', r'\1', definition)
         definition = re.sub(r'\{sx\|([^|]+)\|\|[^}]*\}', r'\1', definition)
-        # Remove other markup
+        definition = re.sub(r'\{dxt\|([^|]+)\|[^|]*\|[^}]*\}', r'\1', definition)
+        definition = re.sub(r'\{dx_def\}.*?\{/dx_def\}', '', definition)
+        
+        # Convert italics and remove other markup
         definition = re.sub(r'\{it\}(.*?)\{/it\}', r'*\1*', definition)
-        definition = re.sub(r'\{bc\}', '', definition)  # Remove 'begin concept' marker
-        definition = re.sub(r'\{[^}]+\}', '', definition)  # Remove any remaining markup
+        definition = re.sub(r'\{bc\}', '', definition)
+        definition = re.sub(r'\{[^}]+\}', '', definition)
         definition = definition.strip()
+        definition = re.sub(r' +', ' ', definition)
         debug(f"Cleaned definition: {definition}")
     else:
         print(f"[{ts()}] WARNING: Could not extract definition for {word}")
@@ -217,11 +230,14 @@ def get_mw_dictionary_data(word):
                 text = item[1]
                 break
         if text:
+            # Use same markup patterns as definition cleanup (see above)
             text = re.sub(r'\{it\}(.*?)\{/it\}', r'*\1*', text)
-            text = re.sub(r'\{ma\}\{mat\|(.*?)\|.*?\}\{/ma\}', '', text)
+            text = re.sub(r'\{d_link\|([^|]+)\|[^}]*\}', r'\1', text)
+            text = re.sub(r'\{dxt\|([^|]+)\|[^|]*\|[^}]*\}', r'\1', text)
             text = re.sub(r'\{et_link\|.*?\}', '', text)
-            text = re.sub(r'\s*\+\s*-\w+[\w\s-]*$', '', text)
+            text = re.sub(r'\{ma\}\{mat\|(.*?)\|.*?\}\{/ma\}', '', text)
             text = re.sub(r'\{[^}]+\}', '', text)
+            text = re.sub(r' +', ' ', text)
             text = text.strip()
             etymology = f'📖 **Etymology of *{word}*:** {text}'
 
@@ -469,22 +485,20 @@ def main():
     if example_sentence:
         insight_parts.append(f"💬 Example: \"{example_sentence}\"")
 
-    insight_parts.append(commonality)
-
     if regions:
         insight_parts.append(f"🌏 Regional note: primarily used in {', '.join(regions)}")
     
+    if etymology:
+        print(f"[{ts()}] Etymology: {etymology}")
+        insight_parts.append(etymology)
+    else:
+        print(f"[{ts()}] No etymology data found for {word}.")
+
+    insight_parts.append(commonality)
     insight = "\n".join(insight_parts)
     print(f"[{ts()}] Insight: {insight}")
 
     if not no_post_mode: post_to_discord(insight, chart_buf)
-
-    if etymology:
-        if not no_post_mode: post_to_discord(etymology, None)
-        print(f"[{ts()}] Etymology: {etymology}")
-    else:
-        if not no_post_mode: post_to_discord(f'📖 No etymology data found for "{word}".', None)
-        print(f"[{ts()}] No etymology data found for {word}.")
 
     print(f"[{ts()}] Posted to Discord successfully.")
 

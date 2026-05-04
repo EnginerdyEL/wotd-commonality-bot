@@ -200,10 +200,10 @@ def main():
     print(f"\n{passed}/{total} tests passed")
     
     if passed == total:
-        print("\n🎉 All tests passed! No regressions detected.")
+        print("\n🎉 All tests passed! No regressions detected.\n")
         return 0
     else:
-        print(f"\n❌ {total - passed} test(s) failed. Review above for details.")
+        print(f"\n❌ {total - passed} test(s) failed. Review above for details.\n")
         return 1
 
 
