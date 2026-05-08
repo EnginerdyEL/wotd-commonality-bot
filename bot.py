@@ -102,21 +102,72 @@ def get_mw_dictionary_data(word):
         debug(f"API returned empty/malformed response for '{word}': {data}")
         return None, None, None, None, None, None
 
-    entry = data[0]
+    # Always use first entry for POS, pronunciation, and audio (most complete phonetic data)
+    first_entry = data[0]
     
-    # DEBUG: Print the entry structure to understand it better
-    debug(f"Entry keys: {entry.keys()}")
-    if 'def' in entry:
-        debug(f"def structure: {entry['def']}")
+    # Loop through entries to find the one with the best definition (prefer current over obsolete/archaic)
+    definition_entry = None
+    fallback_entry = None
+    
+    for candidate in data:
+        if not isinstance(candidate, dict):
+            continue
+        
+        # Check if this entry has any non-obsolete/archaic definitions
+        defs = candidate.get('def', [])
+        has_current = False
+        
+        if defs:
+            for def_block in defs:
+                sseq = def_block.get('sseq', [])
+                for sense_group in sseq:
+                    if isinstance(sense_group, list):
+                        for sense_item in sense_group:
+                            if isinstance(sense_item, list) and len(sense_item) >= 2:
+                                sense_data = sense_item[1]
+                                if isinstance(sense_data, dict):
+                                    sls = sense_data.get('sls', [])
+                                    is_obsolete = 'obsolete' in sls if isinstance(sls, list) else False
+                                    is_archaic = 'archaic' in sls if isinstance(sls, list) else False
+                                    if not (is_obsolete or is_archaic):
+                                        has_current = True
+                                        break
+                        if has_current:
+                            break
+                if has_current:
+                    break
+        
+        # Use first entry with current definitions
+        if has_current:
+            definition_entry = candidate
+            break
+        # Or save first entry as fallback if all are obsolete/archaic
+        elif not fallback_entry:
+            fallback_entry = candidate
+    
+    # Use fallback if no current definitions found
+    if not definition_entry:
+        definition_entry = fallback_entry
+    
+    if not definition_entry:
+        debug(f"No valid entry found for '{word}'")
+        return None, None, None, None, None, None
+    
+    # DEBUG: Print the entry structures
+    debug(f"First entry keys: {first_entry.keys()}")
+    debug(f"Definition entry keys: {definition_entry.keys()}")
+    if 'def' in definition_entry:
+        debug(f"def structure: {definition_entry['def']}")
 
-    # Extract part of speech
-    pos = entry.get('fl', 'word')  # 'fl' is functional label (part of speech)
+    # Extract part of speech from first entry (most reliable)
+    pos = first_entry.get('fl', 'word')  # 'fl' is functional label (part of speech)
 
-    # Extract definition (first sense, first definition)
+    # Extract definition (from best entry with current definitions)
     definition = None
-    defs = entry.get('def', [])
+    defs = definition_entry.get('def', [])
+    
     if defs:
-        # Navigate the nested structure more carefully
+        # Navigate the nested structure to find first definition
         for def_block in defs:
             sseq = def_block.get('sseq', [])
             for sense_group in sseq:
@@ -170,9 +221,9 @@ def get_mw_dictionary_data(word):
     else:
         print(f"[{ts()}] WARNING: Could not extract definition for {word}")
 
-    # Extract first example sentence - search across ALL def_blocks and senses
+    # Extract first example sentence - search across ALL def_blocks and senses (from definition_entry)
     example_sentence = None
-    defs = entry.get('def', [])
+    defs = definition_entry.get('def', [])
     for def_block in defs:
         if example_sentence:
             break
@@ -220,9 +271,9 @@ def get_mw_dictionary_data(word):
     if not example_sentence:
         print(f"[{ts()}] WARNING: Could not extract example sentence for {word}")
 
-    # Extract etymology
+    # Extract etymology (from definition_entry)
     etymology = None
-    et = entry.get('et', None)
+    et = definition_entry.get('et', None)
     if et:
         text = ""
         for item in et:
@@ -241,10 +292,10 @@ def get_mw_dictionary_data(word):
             text = text.strip()
             etymology = f'📖 **Etymology of *{word}*:** {text}'
 
-    # Extract audio URLs and pronunciations (may have multiple)
+    # Extract audio URLs and pronunciations from first entry (best phonetic data)
     audio_urls = []
     prn = []
-    prs = entry.get('hwi', {}).get('prs', [])
+    prs = first_entry.get('hwi', {}).get('prs', [])
     for pr in prs:
         if 'sound' in pr:
             audio_file = pr['sound']['audio']
