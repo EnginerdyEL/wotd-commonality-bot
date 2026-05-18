@@ -185,15 +185,16 @@ To quickly check specific words without overwriting `results.csv`, set `SPOT_CHE
 
 ### Near term
 
-- Dev improvement: Make the Debug flag accessible via command-line
-- Quality improvement: Add test cases to `test_bot.py` for edge cases such as words with no example sentence, no etymology, no audio, variant spellings, hyphenated words, or proper nouns
-- Aesthetic: Fix condition where synonym is so relatively common that it makes the wotd appear as a flatline on the chart. Perhaps only plot when within some factor of each other
-- Improve example sentences: either extract multiple examples and pick the best, or use Claude to generate more illustrative examples
-- Delay the Github Action so that if the MW embed is late or the Discord embed is cached incorrectly, then the wotd embed is more likely to be correct
+- User: Pull synonyms from another source, as MW Thesaurus API lists them in alphabetical order per meaning rather than semantic similarity, which would be much more useful
+- User: Fix condition where synonym is so relatively common that it makes the wotd appear as a flatline on the chart. Perhaps only plot when within some factor of each other
+- Dev: Make the Debug flag accessible via command-line
+- Quality: Add test cases to `test_bot.py` for edge cases such as words with no example sentence, no etymology, no audio, variant spellings, hyphenated words, or proper nouns
+- Quality: Add test cases to `test_bot.py` with hard-coded expectations on the etymology and example sentence to ensure the regex for each doesn't regress. It is fragile.
+- User: Improve example sentences either extract multiple examples and pick the best, or use Claude to generate more illustrative examples
 
 ### Longer term
 
-- Slash commands for on-demand lookup of any word, requiring hosting the bot
-- Multi-server support via multiple webhooks
-- Spellcheck suggestions for unrecognized words, if on-demand is supported
-- Clean up definition, example, and etymology markup parsing using `mwparserfromhell` library instead of unreliable regex chains. However, the regex oddities are mostly solved, so this has diminishing returns.
+- User: Slash commands for on-demand lookup of any word, requiring hosting the bot
+- User: Multi-server support via multiple webhooks
+- User: Spellcheck suggestions for unrecognized words, if on-demand is supported
+- Dev: Clean up definition, example, and etymology markup parsing using `mwparserfromhell` library instead of unreliable regex chains. However, the regex oddities are mostly solved, so this has diminishing returns.
