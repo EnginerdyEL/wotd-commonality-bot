@@ -185,6 +185,8 @@ To quickly check specific words without overwriting `results.csv`, set `SPOT_CHE
 
 ### Near term
 
+- User: Add a "rhymes with" section, pulled from MW API
+- User: Add a "phrases" section, pulled from MW API
 - User: Pull synonyms from another source, as MW Thesaurus API lists them in alphabetical order per meaning rather than semantic similarity, which would be much more useful
 - User: Fix condition where synonym is so relatively common that it makes the wotd appear as a flatline on the chart. Perhaps only plot when within some factor of each other
 - Dev: Make the Debug flag accessible via command-line
