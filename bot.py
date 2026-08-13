@@ -61,7 +61,7 @@ def get_wotd():
     root = ET.fromstring(response.content)
     first_item = root.find(".//item")
     word = first_item.find("title").text.strip().lower()
-    # word = "beltane" # DEBUG
+    # word = "scrupulous" # DEBUG
     print(f"[{ts()}] WOTD from RSS: {word}")
 
     # Step 2: Look up synonyms via the Collegiate Thesaurus API
@@ -529,7 +529,7 @@ def main():
         else:
             audio_links = "  ".join([f"🎵  [Audio Example {i+1}]({url})" for i, url in enumerate(audio_urls)])
             insight_parts.append(f"🔊 Pronunciation:{ipa_wi_disp}{ipa_mw_disp}  {audio_links}")
-    else:
+    elif ipa:
         insight_parts.append(f"🔊 Pronunciation:{ipa_wi_disp}{ipa_mw_disp}")
 
     # Add example sentence if available
