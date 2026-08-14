@@ -1,0 +1,39 @@
+{
+  "test_cases": [
+    {
+      "word": "colloquial",
+      "expected": "*colloquy* or its source, Latin *colloquium* + -*al*",
+      "notes": "Tests {d_link|word|} extraction at START of etymology. Will FAIL: entire 'colloquy' is stripped."
+    },
+    {
+      "word": "salvo",
+      "expected": "Italian *salva*, from French *salve*, from Latin, hail!, from *salvus* healthy",
+      "notes": "Tests {ma}{mat} 'more at' removal. Should PASS once prefix is stripped and italics normalized."
+    },
+    {
+      "word": "boondoggle",
+      "expected": "coined by Robert H. Link †1957 American scoutmaster",
+      "notes": "Happy path - should PASS once prefix is stripped."
+    },
+    {
+      "word": "adroit",
+      "expected": "borrowed from French, going back to Old French, \"handsome, elegant, skilled (in combat),\" from *a-,* prefix, perhaps with intensive value (going back to Latin *ad-* ) + *droit* \"straight, direct, true, regular,\" going back to Latin *directus* \"straight, direct\"",
+      "notes": "Tests complex markup. Should PASS once prefix is stripped and italics normalized."
+    },
+    {
+      "word": "gamut",
+      "expected": "Middle English *gamut, gamma-ut* \"lowest note in the medieval hexachord system, the system itself,\" borrowed from Medieval Latin, from *gamma* (used as a symbol for the lowest note in the scale) + *ut*",
+      "notes": "Tests inline d_link markers. Should PASS once prefix is stripped and italics normalized."
+    },
+    {
+      "word": "recondite",
+      "expected": "Latin *reconditus*, past participle of *recondere* to conceal, from *re-* + *condere* to store up, from *com-* + *-dere* to put",
+      "notes": "Tests {ma}{mat} removal. Should PASS once prefix is stripped and italics normalized."
+    },
+    {
+      "word": "scrupulous",
+      "expected": "Middle English, from Latin *scrupulosus*, from *scrupulus* — see scruple entry 2",
+      "notes": "Tests {et_link} handling. Will FAIL: outputs 'see scruple:2' instead of '— see scruple entry 2'."
+    }
+  ]
+}

@@ -6,6 +6,7 @@ Run with: python3 test_bot.py
 """
 
 import sys
+import json
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -167,6 +168,103 @@ def test_word(word, should_have_synonyms):
     return all_pass, results
 
 
+def test_etymology(etymology_cases_file="etymology_test_cases.json"):
+    """Test etymology extraction against known expected values."""
+    print(f"\n\n{'='*70}")
+    print("ETYMOLOGY EXTRACTION TESTS (TDD - Expected Failures)")
+    print(f"{'='*70}\n")
+    
+    try:
+        with open(etymology_cases_file, 'r') as f:
+            test_data = json.load(f)
+    except FileNotFoundError:
+        print(f"ERROR: {etymology_cases_file} not found in current directory")
+        return False
+    
+    test_cases = test_data['test_cases']
+    results = []
+    
+    for test_case in test_cases:
+        word = test_case['word']
+        expected = test_case['expected']
+        notes = test_case['notes']
+        
+        print(f"\nWord: {word}")
+        print(f"Notes: {notes}")
+        
+        try:
+            # Run the bot on this word
+            _, _, _, etymology, _, _ = get_mw_dictionary_data(word)
+            
+            if etymology is None:
+                actual_raw = "(None)"
+                actual = "(None)"
+                passed = False
+            else:
+                actual_raw = etymology
+                # Strip the "📖 **Etymology of *word*:** " prefix for comparison
+                # The actual format has bold markers: :** not just :
+                if ":** " in etymology:
+                    actual = etymology.split(":** ", 1)[1]
+                elif ": " in etymology:
+                    actual = etymology.split(": ", 1)[1]
+                else:
+                    actual = etymology
+                
+                # Remove asterisks (italics/bold markers) for cleaner comparison
+                actual_normalized = actual.replace("*", "")
+                expected_normalized = expected.replace("*", "")
+                
+                passed = actual_normalized.strip() == expected_normalized.strip()
+            
+            status = "✓ PASS" if passed else "✗ FAIL"
+            print(f"{status}")
+            
+            if not passed:
+                print(f"\nExpected:")
+                print(f"  {expected}")
+                print(f"\nActual (raw from bot):")
+                print(f"  {actual_raw}")
+                print(f"\nActual (repr - exact bytes):")
+                print(f"  {repr(actual_raw)}")
+                print(f"\nAfter stripping prefix:")
+                print(f"  {actual}")
+                print(f"  (repr: {repr(actual)})")
+                print(f"\nAfter removing asterisks:")
+                print(f"  Expected: '{expected_normalized}'")
+                print(f"  Actual:   '{actual_normalized}'")
+                print(f"\nChecking for ': ' in string:")
+                print(f"  ': ' in etymology? {': ' in etymology}")
+                print()
+            
+            results.append((word, passed))
+            
+        except Exception as e:
+            print(f"✗ EXCEPTION: {type(e).__name__}: {e}")
+            results.append((word, False))
+    
+    # Summary
+    print(f"\n{'='*70}")
+    print("ETYMOLOGY TEST SUMMARY")
+    print(f"{'='*70}\n")
+    
+    passed = sum(1 for _, success in results if success)
+    total = len(results)
+    
+    for word, success in results:
+        status = "✓ PASS" if success else "✗ FAIL"
+        print(f"{status}: {word}")
+    
+    print(f"\n{passed}/{total} etymology tests passed")
+    
+    if passed == total:
+        print("\n🎉 All etymology tests passed!\n")
+    else:
+        print(f"\n❌ {total - passed} etymology test(s) failed. Review above for details.\n")
+    
+    return passed == total
+
+
 def main():
     """Run all tests."""
     print("\n" + "="*70)
@@ -208,4 +306,10 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # Run word tests first, then etymology tests
+    word_test_result = main()
+    
+    # Run etymology tests
+    etymology_passed = test_etymology()
+    
+    sys.exit(word_test_result)
