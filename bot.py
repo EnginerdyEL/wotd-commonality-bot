@@ -13,7 +13,7 @@ from urllib.parse import quote
 load_dotenv()
 
 # DEBUG Flag: Set to True to show debug output, False to hide
-DEBUG = False
+DEBUG = True
 
 MW_DI_API_KEY = os.environ["MW_DI_API_KEY"]
 MW_TH_API_KEY = os.environ["MW_TH_API_KEY"]
@@ -281,15 +281,76 @@ def get_mw_dictionary_data(word):
                 text = item[1]
                 break
         if text:
+            debug(f"Etymology raw text before cleanup: {text[:200]}")
             # Use same markup patterns as definition cleanup (see above)
             text = re.sub(r'\{it\}(.*?)\{/it\}', r'*\1*', text)
+            
+            # Extract d_link content: {d_link|word|...} → word
             text = re.sub(r'\{d_link\|([^|]+)\|[^}]*\}', r'\1', text)
-            text = re.sub(r'\{dxt\|([^|]+)\|[^|]*\|[^}]*\}', r'\1', text)
+            
+            # Handle dx_ety pattern BEFORE generic dxt extraction
+            # Format: {dx_ety}see {dxt|word:num||}{/dx_ety} → — see word entry num
+            dx_ety_match = re.search(r'\{dx_ety\}see \{dxt\|([^|:]+):(\d+)\|\|\}\{/dx_ety\}', text)
+            if dx_ety_match:
+                word_ref = dx_ety_match.group(1)
+                entry_num = dx_ety_match.group(2)
+                debug(f"Found dx_ety pattern: word='{word_ref}', entry='{entry_num}'")
+                replacement = f'— see {word_ref} entry {entry_num}'
+                text = text.replace(dx_ety_match.group(0), replacement)
+            else:
+                # Remove dx_ety if we couldn't parse it
+                text = re.sub(r'\{dx_ety\}.*?\{/dx_ety\}', '', text)
+            
+            # Extract dxt content: {dxt|word|...} → word (for non-dx_ety patterns)
+            text = re.sub(r'\{dxt\|([^|:]+)(?::[^\|]*)?\|[^|]*\|[^}]*\}', r'\1', text)
+            
+            # Handle et_link: format varies - {et_link|word|variant}
+            # Examples: {et_link|colloquy|colloquy}, {et_link|-al:1|-al:1}, {et_link|scruple|2}
+            # Important: if both params are identical, just remove the tag (text is already mentioned)
+            et_link_matches = re.findall(r'\{et_link\|([^|]+)\|([^}]+)\}', text)
+            debug(f"Found {len(et_link_matches)} et_link match(es): {et_link_matches}")
+            
+            if et_link_matches:
+                for ref_word, ref_variant in et_link_matches:
+                    if ref_word == ref_variant:
+                        # Check if there's a preceding italic version of this word
+                        # Extract just the word part (without :number suffix)
+                        word_only = ref_word.split(':')[0]
+                        italic_pattern = f'{{it}}{word_only}{{/it}}'
+                        tag_position = text.find(f'{{et_link|{ref_word}|{ref_variant}}}')
+                        preceding_text = text[max(0, tag_position - 100):tag_position]
+                        
+                        if italic_pattern in preceding_text or f'{{it}}' in preceding_text:
+                            # Preceding italic found: remove the duplicate tag
+                            text = text.replace(f'{{et_link|{ref_word}|{ref_variant}}}', '')
+                        else:
+                            # No preceding italic: extract the word
+                            replacement = word_only
+                            text = text.replace(f'{{et_link|{ref_word}|{ref_variant}}}', replacement)
+                    else:
+                        is_prefix = ref_word.startswith('-')
+                        digit_match = re.search(r'(\d+)', ref_variant)
+                        
+                        if not is_prefix and digit_match:
+                            # Full word with entry number → "— see word entry number"
+                            entry_num = digit_match.group(1)
+                            replacement = f'— see {ref_word} entry {entry_num}'
+                        else:
+                            # Prefix or no digit → just extract word/prefix
+                            replacement = ref_word.split(':')[0] if ':' in ref_word else ref_word
+                        
+                        text = text.replace(f'{{et_link|{ref_word}|{ref_variant}}}', replacement)
+            # Remove any et_link that couldn't be parsed (malformed)
             text = re.sub(r'\{et_link\|.*?\}', '', text)
+            
+            # Remove "more at" references: {ma}{mat|...}{/ma}
             text = re.sub(r'\{ma\}\{mat\|(.*?)\|.*?\}\{/ma\}', '', text)
+            
+            # Remove any remaining markup
             text = re.sub(r'\{[^}]+\}', '', text)
             text = re.sub(r' +', ' ', text)
             text = text.strip()
+            debug(f"Etymology cleaned text: {text}")
             etymology = f'📖 **Etymology of *{word}*:** {text}'
 
     # Extract audio URLs and pronunciations from first entry (best phonetic data)

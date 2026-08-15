@@ -233,8 +233,6 @@ def test_etymology(etymology_cases_file="etymology_test_cases.json"):
                 print(f"\nAfter removing asterisks:")
                 print(f"  Expected: '{expected_normalized}'")
                 print(f"  Actual:   '{actual_normalized}'")
-                print(f"\nChecking for ': ' in string:")
-                print(f"  ': ' in etymology? {': ' in etymology}")
                 print()
             
             results.append((word, passed))
@@ -262,7 +260,7 @@ def test_etymology(etymology_cases_file="etymology_test_cases.json"):
     else:
         print(f"\n❌ {total - passed} etymology test(s) failed. Review above for details.\n")
     
-    return passed == total
+    return passed == total, results  # Return pass/fail and results for summary
 
 
 def main():
@@ -298,18 +296,51 @@ def main():
     print(f"\n{passed}/{total} tests passed")
     
     if passed == total:
-        print("\n🎉 All tests passed! No regressions detected.\n")
-        return 0
+        print("\n🎉 All word tests passed! No regressions detected.\n")
+        return 0, results  # Return exit code and results for summary
     else:
-        print(f"\n❌ {total - passed} test(s) failed. Review above for details.\n")
-        return 1
+        print(f"\n❌ {total - passed} word test(s) failed. Review above for details.\n")
+        return 1, results  # Return exit code and results for summary
 
 
 if __name__ == "__main__":
     # Run word tests first, then etymology tests
-    word_test_result = main()
+    word_exit_code, word_results = main()
+    etymology_passed, etymology_results = test_etymology()
     
-    # Run etymology tests
-    etymology_passed = test_etymology()
+    # Unified summary at the end
+    print(f"\n\n{'='*70}")
+    print("UNIFIED TEST SUMMARY")
+    print(f"{'='*70}\n")
     
-    sys.exit(word_test_result)
+    print("WORD EXTRACTION TESTS:")
+    for word, all_pass, test_results in word_results:
+        dict_ok = test_results.get('dictionary', False)
+        thes_ok = test_results.get('thesaurus', False)
+        freq_ok = test_results.get('frequency', False)
+        status = "✓ PASS" if all_pass else "✗ FAIL"
+        print(f"{status}: {word:20} [{'✓ Dictionary' if dict_ok else '✗ Dictionary'}, {'✓ Thesaurus' if thes_ok else '✗ Thesaurus'}, {'✓ Frequency' if freq_ok else '✗ Frequency'}]")
+    
+    word_passed = sum(1 for _, all_pass, _ in word_results if all_pass)
+    print(f"\n{word_passed}/{len(word_results)} word tests passed")
+    
+    print(f"\n{'='*70}\n")
+    print("ETYMOLOGY TESTS:")
+    for word, success in etymology_results:
+        status = "✓ PASS" if success else "✗ FAIL"
+        print(f"{status}: {word}")
+    
+    etymology_passed_count = sum(1 for _, success in etymology_results if success)
+    print(f"\n{etymology_passed_count}/{len(etymology_results)} etymology tests passed")
+    
+    print(f"\n{'='*70}\n")
+    
+    total_passed = word_passed + etymology_passed_count
+    total_tests = len(word_results) + len(etymology_results)
+    
+    if total_passed == total_tests:
+        print(f"🎉 ALL TESTS PASSED! ({total_passed}/{total_tests})\n")
+        sys.exit(0)
+    else:
+        print(f"❌ {total_tests - total_passed} TEST(S) FAILED ({total_passed}/{total_tests})\n")
+        sys.exit(1)
