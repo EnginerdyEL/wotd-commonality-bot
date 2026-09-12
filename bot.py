@@ -13,7 +13,7 @@ from urllib.parse import quote
 load_dotenv()
 
 # DEBUG Flag: Set to True to show debug output, False to hide
-DEBUG = True
+DEBUG = False
 
 MW_DI_API_KEY = os.environ["MW_DI_API_KEY"]
 MW_TH_API_KEY = os.environ["MW_TH_API_KEY"]
@@ -61,15 +61,31 @@ def get_wotd():
     root = ET.fromstring(response.content)
     first_item = root.find(".//item")
     word = first_item.find("title").text.strip().lower()
-    # word = "scrupulous" # DEBUG
+    # word = "hobnob" # DEBUG
     print(f"[{ts()}] WOTD from RSS: {word}")
 
-    # Step 2: Look up synonyms via the Collegiate Thesaurus API
-    synonyms = get_mw_thesaurus_data(word)
+    # Step 2: Get the sense index from dictionary (to use correct thesaurus sense)
+    dict_result = get_mw_dictionary_data(word)
+    if dict_result and len(dict_result) >= 7:
+        sense_idx = dict_result[6]  # 7th element is the sense index
+    else:
+        sense_idx = 0  # Default to first sense if dictionary lookup fails
+    
+    # Step 3: Look up synonyms via the Collegiate Thesaurus API using the correct sense
+    synonyms = get_mw_thesaurus_data(word, sense_idx)
     return word, synonyms
 
 
-def get_mw_thesaurus_data(word):
+def get_mw_thesaurus_data(word, target_sense_idx=0):
+    """Fetch synonyms from the MW Collegiate Thesaurus API.
+    
+    Args:
+        word: The word to look up
+        target_sense_idx: Which sense group to use (0-based index). Default 0 = first sense.
+    
+    Returns:
+        List of synonyms from the target sense group
+    """
     api_url = f"https://www.dictionaryapi.com/api/v3/references/thesaurus/json/{quote(word)}?key={MW_TH_API_KEY}"
 
     api_response = requests.get(api_url)
@@ -79,12 +95,29 @@ def get_mw_thesaurus_data(word):
     synonyms = []
     for entry in data:
         if isinstance(entry, dict) and "meta" in entry:
-            syn_groups = entry["meta"].get("syns", [])
-            if syn_groups:
-                for syn in syn_groups[0]:  # only first sense group
+            meta = entry["meta"]
+            syn_groups = meta.get("syns", [])
+            
+            debug(f"Thesaurus for '{word}': found {len(syn_groups)} sense group(s)")
+            debug(f"  Using sense index {target_sense_idx}")
+            
+            # Use only the target sense group
+            if target_sense_idx < len(syn_groups):
+                syn_list = syn_groups[target_sense_idx]
+                debug(f"  Sense {target_sense_idx}: {len(syn_list)} synonym(s)")
+                for syn in syn_list:
                     if syn.lower() != word.lower() and syn.lower() not in synonyms:
                         synonyms.append(re.sub(r'[()]', '', syn).lower().strip())
-            break  # only use first dictionary entry corresponding to definition 1
+            else:
+                debug(f"  WARNING: Requested sense index {target_sense_idx} but only {len(syn_groups)} sense(s) available. Using sense 0.")
+                if syn_groups:
+                    for syn in syn_groups[0]:
+                        if syn.lower() != word.lower() and syn.lower() not in synonyms:
+                            synonyms.append(re.sub(r'[()]', '', syn).lower().strip())
+            
+            break  # only use first dictionary entry
+    
+    debug(f"Collected {len(synonyms)} unique synonym(s) from sense {target_sense_idx}")
     return synonyms
 
 
@@ -108,6 +141,7 @@ def get_mw_dictionary_data(word):
     # Loop through entries to find the one with the best definition (prefer current over obsolete/archaic)
     definition_entry = None
     fallback_entry = None
+    best_sense_idx = 0  # Track which sense index is the best (0-based)
     
     for candidate in data:
         if not isinstance(candidate, dict):
@@ -116,10 +150,12 @@ def get_mw_dictionary_data(word):
         # Check if this entry has any non-obsolete/archaic definitions
         defs = candidate.get('def', [])
         has_current = False
+        current_sense_idx = 0  # Track sense index within this search
         
         if defs:
             for def_block in defs:
                 sseq = def_block.get('sseq', [])
+                sense_idx = 0  # Counter for sense groups
                 for sense_group in sseq:
                     if isinstance(sense_group, list):
                         for sense_item in sense_group:
@@ -131,7 +167,9 @@ def get_mw_dictionary_data(word):
                                     is_archaic = 'archaic' in sls if isinstance(sls, list) else False
                                     if not (is_obsolete or is_archaic):
                                         has_current = True
+                                        current_sense_idx = sense_idx
                                         break
+                            sense_idx += 1
                         if has_current:
                             break
                 if has_current:
@@ -140,6 +178,7 @@ def get_mw_dictionary_data(word):
         # Use first entry with current definitions
         if has_current:
             definition_entry = candidate
+            best_sense_idx = current_sense_idx
             break
         # Or save first entry as fallback if all are obsolete/archaic
         elif not fallback_entry:
@@ -148,10 +187,11 @@ def get_mw_dictionary_data(word):
     # Use fallback if no current definitions found
     if not definition_entry:
         definition_entry = fallback_entry
+        best_sense_idx = 0
     
     if not definition_entry:
         debug(f"No valid entry found for '{word}'")
-        return None, None, None, None, None, None
+        return None, None, None, None, None, None, 0
     
     # DEBUG: Print the entry structures
     debug(f"First entry keys: {first_entry.keys()}")
@@ -162,12 +202,13 @@ def get_mw_dictionary_data(word):
     # Extract part of speech from first entry (most reliable)
     pos = first_entry.get('fl', 'word')  # 'fl' is functional label (part of speech)
 
-    # Extract definition (from best entry with current definitions)
+    # Extract definition (from best sense index with current definitions)
     definition = None
     defs = definition_entry.get('def', [])
     
     if defs:
-        # Navigate the nested structure to find first definition
+        # Navigate the nested structure to find the definition at best_sense_idx
+        sense_counter = 0
         for def_block in defs:
             sseq = def_block.get('sseq', [])
             for sense_group in sseq:
@@ -177,21 +218,25 @@ def get_mw_dictionary_data(word):
                         if isinstance(sense_item, list) and len(sense_item) >= 2:
                             sense_data = sense_item[1]  # Get the dict part
                             if isinstance(sense_data, dict):
-                                # Look for 'dt' (definition text)
-                                dt = sense_data.get('dt', [])
-                                debug(f"Found dt array: {dt}")
-                                if dt:
-                                    for dt_item in dt:
-                                        debug(f"dt_item: {dt_item}")
-                                        if isinstance(dt_item, list) and len(dt_item) >= 2:
-                                            if dt_item[0] == 'text':
-                                                definition = dt_item[1]
-                                                debug(f"Extracted text definition: {definition}")
-                                                break
-                                if definition:
-                                    break
-                if definition:
-                    break
+                                # Check if this is the best sense we identified
+                                if sense_counter == best_sense_idx:
+                                    # This is the sense we want! Extract its definition
+                                    dt = sense_data.get('dt', [])
+                                    debug(f"Extracting definition from sense index {sense_counter}")
+                                    debug(f"Found dt array: {dt}")
+                                    if dt:
+                                        for dt_item in dt:
+                                            debug(f"dt_item: {dt_item}")
+                                            if isinstance(dt_item, list) and len(dt_item) >= 2:
+                                                if dt_item[0] == 'text':
+                                                    definition = dt_item[1]
+                                                    debug(f"Extracted text definition: {definition}")
+                                                    break
+                                    if definition:
+                                        break
+                            sense_counter += 1
+                    if definition:
+                        break
             if definition:
                 break
     
@@ -373,8 +418,9 @@ def get_mw_dictionary_data(word):
             mw = pr['mw']
             prn.append(mw)
     debug(f"pronunciation = {prn}")
+    debug(f"Best sense index for '{word}': {best_sense_idx}")
 
-    return pos, definition, example_sentence, etymology, audio_urls if audio_urls else None, prn if prn else None
+    return pos, definition, example_sentence, etymology, audio_urls if audio_urls else None, prn if prn else None, best_sense_idx
 
 
 def get_ngrams_data(words):
@@ -567,7 +613,7 @@ def main():
             chart_buf = generate_chart(ngram_data, [word] + display_synonyms)
 
     ipa, regions = get_wiktionary_data(word)
-    pos, definition, example_sentence, etymology, audio_urls, prn = get_mw_dictionary_data(word)
+    pos, definition, example_sentence, etymology, audio_urls, prn, sense_idx = get_mw_dictionary_data(word)
 
     # Build insight in desired order: word+definition, pronunciation, example sentence, commonality, regional note
     insight_parts = []
