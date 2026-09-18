@@ -12,7 +12,7 @@ Every day, Wordy automatically:
 5. Looks up and shares pronunciation in audio format via MW Collegiate Dictionary API
 6. Extracts and shares an example sentence from MW Dictionary API
 7. Looks up frequency data for the word and its common synonyms via Google Ngrams
-8. Posts an insight with frequency tier emoji, examples below
+8. Posts an insight with frequency tier emoji and rarity comparison
 9. Posts a frequency-over-time chart showing the word and synonyms plotted from 1900–2019
 10. Posts the etymology from the MW Collegiate Dictionary API
 
@@ -82,8 +82,11 @@ Etymology is pulled from MW Dictionary and reformatted for Discord, published af
 
 ## Regional Indicator
 
-Regional indicators are pulled from Wiktionary's wikitext API and published as part of the rarity insight line. Regions are listed in the order they appear in the Wiktionary entry.
-Currently tracked regions: Australia, New Zealand, British, UK, US, American, Canada, Canadian, Ireland, Irish, Scotland, Scottish. Hard-coded in bot.py
+Regional indicators are pulled from Wiktionary's wikitext API and published as part of the rarity insight line. Regions are listed in the order they appear in the Wiktionary entry. Currently tracked regions: Australia, New Zealand, British, UK, US, American, Canada, Canadian, Ireland, Irish, Scotland, Scottish. Hard-coded in bot.py
+
+## Formality Indicator
+
+TODO: Formality indicators (colloquial vs. literary) help learners understand whether a word is typically used in casual speech or formal writing. This feature is currently under exploration and not yet implemented - we're investigating data sources from Wiktionary, MW API, or other services to reliably extract formality tags.
 
 ## Tech stack
 
@@ -137,27 +140,18 @@ To deploy to a new server, create a Discord webhook in the target channel and up
 
 ## Testing
 
-Run the comprehensive unit test suite with:
+Run the unit test suite with:
 ```bash
 python3 test_bot.py
 ```
 
-This tests dictionary extraction and the full pipeline (thesaurus + ngrams) across 7 carefully chosen edge cases:
-1. Happy path with full data
-2. Accented characters
-3. Rare words with minimal data
-4. Multi-word phrases
-5. Multiple pronunciations/audio files
-6. Words with rich synonym data
-7. Adjectives with thesaurus entries
+This tests dictionary and thesaurus extraction across 7 edge cases including accented characters, rare words, multi-word phrases, and multiple pronunciations.
 
-### Adding more test cases
+### Regression Testing Strategy
 
-To add new test cases (e.g., hyphenated words, proper nouns, archaic words), simply add tuples to `TEST_CASES` in `test_bot.py`:
-```python
-("example-word", "Description of what makes this case interesting", True/False),
-```
-Set the third parameter to `True` if you expect the word to have synonyms for pipeline testing.
+A separate etymology test suite (`etymology_test_cases.json` and `test_etymology()`) validates that markup parsing doesn't regress as regex patterns evolve. Known limitations exist around complex markup patterns - see Future Ideas below.
+
+To add test cases, edit `TEST_CASES` in `test_bot.py` or add entries to `etymology_test_cases.json` for etymology-specific tests.
 
 ## Cron schedule
 
@@ -181,22 +175,24 @@ This generates `results.csv` with ngram frequencies for 40 reference words acros
 
 To quickly check specific words without overwriting `results.csv`, set `SPOT_CHECK_MODE = True` in `calibrate.py` and add your words to `SPOT_CHECK_WORDS`. This will print each word's ngram frequency, rarity tier, and any regional indicators from Wiktionary — useful for investigating a specific WOTD or its synonyms or any other set of words.
 
+## Known Limitations
+
+- Etymology and example sentence markup parsing relies on regex chains, which can be fragile with complex MW API markup. A regression test suite tracks this, but manual review is sometimes needed for edge cases.
+- Synonym selection prioritizes semantic relevance by skipping archaic/obsolete senses. However, when multiple current senses exist, the thesaurus API doesn't indicate which is most relevant, so frequency-based ranking is used as a tie-breaker.
+
 ## Future ideas
 
 ### Near term
 
-- User: Add a "rhymes with" section, pulled from MW API
-- User: Add a "phrases" section, pulled from MW API
-- User: Pull synonyms from another source, as MW Thesaurus API lists them in alphabetical order per meaning rather than semantic similarity, which would be much more useful
-- User: Fix condition where synonym is so relatively common that it makes the wotd appear as a flatline on the chart. Perhaps only plot when within some factor of each other
-- Dev: Make the Debug flag accessible via command-line
-- Quality: Add test cases to `test_bot.py` for edge cases such as words with no example sentence, no etymology, no audio, variant spellings, hyphenated words, or proper nouns
-- Quality: Add test cases to `test_bot.py` with hard-coded expectations on the etymology and example sentence to ensure the regex for each doesn't regress. It is fragile.
-- User: Improve example sentences either extract multiple examples and pick the best, or use Claude to generate more illustrative examples
+- Explore data sources for formality indicator (colloquial vs. literary) via Wiktionary or MW API tags
+- Add a "rhymes with" section, pulled from Datamuse API with frequency-based filtering
+- Add a "phrases" section, pulled from MW API if available
+- Improve example sentences by extracting multiple and selecting the most illustrative
+- Fix chart flatline issue when a synonym is far more common than the WOTD
 
 ### Longer term
 
-- User: Slash commands for on-demand lookup of any word, requiring hosting the bot
-- User: Multi-server support via multiple webhooks
-- User: Spellcheck suggestions for unrecognized words, if on-demand is supported
-- Dev: Clean up definition, example, and etymology markup parsing using `mwparserfromhell` library instead of unreliable regex chains. However, the regex oddities are mostly solved, so this has diminishing returns.
+- Slash commands for on-demand word lookup (requires hosting the bot)
+- Multi-server support via multiple webhooks
+- Spellcheck suggestions for unrecognized words
+- Consider `mwparserfromhell` library for cleaner markup parsing if regex fragility becomes unmanageable
