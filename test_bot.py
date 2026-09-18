@@ -38,7 +38,7 @@ def test_dictionary_data(word):
     """Test dictionary data extraction."""
     print(f"\n  Dictionary Extraction:")
     try:
-        pos, definition, example_sentence, etymology, audio_urls, prn = get_mw_dictionary_data(word)
+        pos, definition, example_sentence, etymology, audio_urls, prn, sense_idx = get_mw_dictionary_data(word)
         
         print(f"    ✓ POS: {pos if pos else '(None)'}")
         print(f"    ✓ Definition: {definition[:50] + '...' if definition and len(definition) > 50 else definition if definition else '(None)'}")
@@ -194,7 +194,7 @@ def test_etymology(etymology_cases_file="etymology_test_cases.json"):
         
         try:
             # Run the bot on this word
-            _, _, _, etymology, _, _ = get_mw_dictionary_data(word)
+            _, _, _, etymology, _, _, _ = get_mw_dictionary_data(word)
             
             if etymology is None:
                 actual_raw = "(None)"

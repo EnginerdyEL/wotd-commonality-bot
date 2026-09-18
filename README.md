@@ -1,6 +1,6 @@
 # Wordy — WOTD Commonality Bot
 
-A Discord automation that posts daily insights about the Merriam-Webster Word of the Day (WOTD), helping English learners understand how common or rare the word is relative to its closest synonyms.
+A Discord automation that posts daily insights about the Merriam-Webster Word of the Day (WOTD), helping English learners understand how common the word is, how to pronounce it, where it's from, and more
 
 ## What it does
 
