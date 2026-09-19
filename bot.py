@@ -61,7 +61,7 @@ def get_wotd():
     root = ET.fromstring(response.content)
     first_item = root.find(".//item")
     word = first_item.find("title").text.strip().lower()
-    # word = "hobnob" # DEBUG
+    # word = "yeet" # DEBUG
     print(f"[{ts()}] WOTD from RSS: {word}")
 
     # Step 2: Get the sense index from dictionary (to use correct thesaurus sense)
@@ -204,6 +204,7 @@ def get_mw_dictionary_data(word):
 
     # Extract definition (from best sense index with current definitions)
     definition = None
+    formality = None  # Will be set when we extract the definition
     defs = definition_entry.get('def', [])
     
     if defs:
@@ -220,10 +221,30 @@ def get_mw_dictionary_data(word):
                             if isinstance(sense_data, dict):
                                 # Check if this is the best sense we identified
                                 if sense_counter == best_sense_idx:
-                                    # This is the sense we want! Extract its definition
+                                    # This is the sense we want! Extract its definition and formality
                                     dt = sense_data.get('dt', [])
                                     debug(f"Extracting definition from sense index {sense_counter}")
                                     debug(f"Found dt array: {dt}")
+                                    
+                                    # Extract register/formality info (sls - sense-level status)
+                                    # Check both def_block level and sense_data level (yeet has it at def_block level)
+                                    sls_from_block = def_block.get('sls', [])
+                                    sls_from_sense = sense_data.get('sls', [])
+                                    sls = sls_from_block + sls_from_sense  # Combine both if they exist
+                                    
+                                    register_labels = []
+                                    if isinstance(sls, list):
+                                        for label in sls:
+                                            # Skip archaic/obsolete (already filtered), include all other registers
+                                            if label not in ['archaic', 'obsolete']:
+                                                # Capitalize for display: 'slang' -> 'Slang'
+                                                register_labels.append(label.capitalize())
+                                    
+                                    # Format formality: show only if non-standard register exists
+                                    if register_labels:
+                                        formality = ', '.join(register_labels)
+                                    debug(f"Extracted formality: {formality}")
+                                    
                                     if dt:
                                         for dt_item in dt:
                                             debug(f"dt_item: {dt_item}")
@@ -419,8 +440,9 @@ def get_mw_dictionary_data(word):
             prn.append(mw)
     debug(f"pronunciation = {prn}")
     debug(f"Best sense index for '{word}': {best_sense_idx}")
+    debug(f"Formality: {formality}")
 
-    return pos, definition, example_sentence, etymology, audio_urls if audio_urls else None, prn if prn else None, best_sense_idx
+    return pos, definition, example_sentence, etymology, audio_urls if audio_urls else None, prn if prn else None, best_sense_idx, formality
 
 
 def get_ngrams_data(words):
@@ -613,7 +635,7 @@ def main():
             chart_buf = generate_chart(ngram_data, [word] + display_synonyms)
 
     ipa, regions = get_wiktionary_data(word)
-    pos, definition, example_sentence, etymology, audio_urls, prn, sense_idx = get_mw_dictionary_data(word)
+    pos, definition, example_sentence, etymology, audio_urls, prn, sense_idx, formality = get_mw_dictionary_data(word)
 
     # Build insight in desired order: word+definition, pronunciation, example sentence, commonality, regional note
     insight_parts = []
@@ -645,6 +667,9 @@ def main():
 
     if regions:
         insight_parts.append(f"🌏 Regional note: primarily used in {', '.join(regions)}")
+    
+    if formality:
+        insight_parts.append(f"🤵 Formality: {formality}")
     
     if etymology:
         print(f"[{ts()}] Etymology: {etymology}")
