@@ -12,9 +12,12 @@ Every day, Wordy automatically:
 5. Looks up and shares pronunciation in audio format via MW Collegiate Dictionary API
 6. Extracts and shares an example sentence from MW Dictionary API
 7. Looks up frequency data for the word and its common synonyms via Google Ngrams
-8. Posts an insight with frequency tier emoji and rarity comparison
-9. Posts a frequency-over-time chart showing the word and synonyms plotted from 1900–2019
-10. Posts the etymology from the MW Collegiate Dictionary API
+8. Filters synonyms by similar frequency to prevent flatline charts
+9. Posts an insight with frequency tier emoji and rarity comparison
+10. Posts a frequency-over-time chart showing the word and filtered synonyms plotted from 1900–2019
+11. Posts the etymology from the MW Collegiate Dictionary API
+12. Posts formality indicator (slang, informal, etc.) when the word has non-standard register from MW Dictionary API
+13. Posts regional indicators from Wiktionary when applicable
 
 If no thesaurus entry exists for the word, it posts the rarity label and frequency chart for the word alone.
 
@@ -28,17 +31,21 @@ If no thesaurus entry exists for the word, it posts the rarity label and frequen
 >
 > 🟡 "speculate" is moderately common and 15.5x less common than "guess" in literature.
 
-> **Adroit** — *adjective* — having or showing skill, cleverness, or resourcefulness in handling situations
+> **Yeet** — *verb* — to throw with force and without careful aim
 >
-> 🔊 Pronunciation: /əˈdɹɔɪt/  🎵 [Audio Example](https://...)
+> 🔊 Pronunciation: /jiːt/  🎵 [Audio Example](https://...)
 >
-> 💬 Example: "an adroit negotiator"
+> 💬 Example: "yeet that across the room"
 >
-> 🟡 "adroit" is uncommon and 75.1x less common than "expert" in literature.
+> 🤵 Formality: Slang
+>
+> 🔴 "yeet" is very rare and 850x less common than "throw" in literature.
 
-> **Evanescent** — *adjective* — tending to vanish like vapor
+> **Volition** — *noun* — the power of making a choice or decision
 >
-> 🟡 "evanescent" is uncommon and 79.7x less common than "brief" in literature.
+> 🟡 "volition" is uncommon and 5.2x less common than "autonomy" in literature.
+>
+> Synonyms not plotted: accord, will
 
 ## Pronunciation
 
@@ -86,7 +93,20 @@ Regional indicators are pulled from Wiktionary's wikitext API and published as p
 
 ## Formality Indicator
 
-TODO: Formality indicators (colloquial vs. literary) help learners understand whether a word is typically used in casual speech or formal writing. This feature is currently under exploration and not yet implemented - we're investigating data sources from Wiktionary, MW API, or other services to reliably extract formality tags.
+Formality indicators help learners understand whether a word is typically used in casual speech or formal writing. Labels are pulled from the Merriam-Webster Collegiate Dictionary API when available. Non-standard registers are shown with emoji 🤵.
+
+Possible indicators: Slang, Informal, Vulgar, and others. Standard/formal words (the majority) show no indicator by default to keep output clean. When formality is shown, it reflects the register of the definition sense being displayed (which may differ from other senses of the same word).
+
+## Ngrams Display and Synonym Filtering
+
+To prevent the word-of-the-day from appearing as a flatline on the chart when a synonym is significantly more or less common, Wordy filters synonyms before display:
+
+- **Threshold:** Only synonyms within 0.2x to 5x the word's frequency are displayed on the chart
+- **Display limit:** Up to 3 filtered synonyms are plotted alongside the word
+- **All synonyms considered:** The bot evaluates all available synonyms, not just the top 3
+- **Comparison always shown:** The rarity comparison in the insight text uses the most common synonym overall (even if it's filtered out of the chart), ensuring learners always see a meaningful frequency ratio
+
+Synonyms filtered out due to frequency disparity are listed at the bottom of the insight ("Synonyms not plotted: ...") so learners know other options exist but are too common or rare to plot meaningfully.
 
 ## Tech stack
 
@@ -184,15 +204,14 @@ To quickly check specific words without overwriting `results.csv`, set `SPOT_CHE
 
 ### Near term
 
-- Explore data sources for formality indicator (colloquial vs. literary) via Wiktionary or MW API tags
+- Add "Recent Examples on the Web" — extract from MW dictionary page if available in API, or fetch multiple example sentences and select the most illustrative
 - Add a "rhymes with" section, pulled from Datamuse API with frequency-based filtering
 - Add a "phrases" section, pulled from MW API if available
-- Improve example sentences by extracting multiple and selecting the most illustrative
-- Fix chart flatline issue when a synonym is far more common than the WOTD
+- Investigate colloquial vs. literary tags in Wiktionary to enrich formality indicators beyond MW's current coverage
 
 ### Longer term
 
+- Consider `mwparserfromhell` library for cleaner markup parsing if regex fragility becomes unmanageable
 - Slash commands for on-demand word lookup (requires hosting the bot)
 - Multi-server support via multiple webhooks
-- Spellcheck suggestions for unrecognized words
-- Consider `mwparserfromhell` library for cleaner markup parsing if regex fragility becomes unmanageable
+- Spellcheck suggestions for unrecognized words (only relevant if on-demand available)

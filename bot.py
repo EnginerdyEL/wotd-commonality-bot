@@ -61,7 +61,7 @@ def get_wotd():
     root = ET.fromstring(response.content)
     first_item = root.find(".//item")
     word = first_item.find("title").text.strip().lower()
-    # word = "yeet" # DEBUG
+    # word = "churlish" # DEBUG
     print(f"[{ts()}] WOTD from RSS: {word}")
 
     # Step 2: Get the sense index from dictionary (to use correct thesaurus sense)
@@ -560,35 +560,64 @@ def get_wiktionary_data(word):
 
 
 def build_insight(word, synonyms, ngram_data):
-    """Build the insight text comparing the WOTD to its common synonyms."""
+    """Build the insight text comparing the WOTD to its common synonyms.
+    Filters out synonyms >5x or <0.2x the WOTD frequency for display.
+    Always uses best overall synonym for comparison in insight text."""
     if not ngram_data:
-        return "Not enough data to calculate commonality."
-
-    # Find the 3 most common synonyms
-    display_synonyms = sorted(synonyms, key=lambda s: get_recent_frequency(ngram_data, s), reverse=True)[:3]
-    print(f"[{ts()}] Display Synonyms: {display_synonyms}")
-    
-    # Find the most common synonym among display_synonyms for the insight text
-    best_syn = max(display_synonyms, key=lambda s: get_recent_frequency(ngram_data, s))
-    best_syn_freq = get_recent_frequency(ngram_data, best_syn)
+        return [], [], "Not enough data to calculate commonality."
 
     wotd_freq = get_recent_frequency(ngram_data, word)
-    if wotd_freq == 0 or best_syn_freq == 0:
-        return display_synonyms, "Not enough data to calculate commonality."
-
+    if wotd_freq == 0:
+        return [], [], "Not enough data to calculate commonality."
+    
+    # Calculate frequencies for all synonyms
+    syn_freqs = {s: get_recent_frequency(ngram_data, s) for s in synonyms}
+    
+    # Find the best (most common) synonym overall for the comparison line
+    best_syn = max(synonyms, key=lambda s: syn_freqs[s])
+    best_syn_freq = syn_freqs[best_syn]
+    
+    # Filter synonyms by 0.2x-5x threshold
+    filtered_synonyms = []
+    out_of_range_synonyms = []
+    
+    for syn, syn_freq in syn_freqs.items():
+        if syn_freq == 0:
+            out_of_range_synonyms.append(syn)
+            continue
+        
+        ratio = syn_freq / wotd_freq
+        if 0.2 <= ratio <= 5:
+            filtered_synonyms.append(syn)
+        else:
+            out_of_range_synonyms.append(syn)
+    
+    # Use top 3 of filtered synonyms for display
+    display_synonyms = sorted(filtered_synonyms, key=lambda s: syn_freqs[s], reverse=True)[:3]
+    print(f"[{ts()}] Display Synonyms: {display_synonyms}")
+    
+    # Cap the out-of-range list at 3 items for the "not plotted" note
+    filtered_out_synonyms = sorted(out_of_range_synonyms, key=lambda s: syn_freqs[s], reverse=True)[:3]
+    print(f"[{ts()}] Not Plotted Synonyms (outside 0.2x-5x range): {filtered_out_synonyms}")
+    
+    # Build the commonality comparison using the best synonym overall
     rarity = get_rarity_label(wotd_freq)
     emoji = get_frequency_tier_emoji(wotd_freq)
 
     if wotd_freq >= best_syn_freq:
         ratio = wotd_freq / best_syn_freq
         if ratio < 1.5:
-            return(display_synonyms,f'{emoji} *{word}* is {rarity} and about as common as *{best_syn}* in literature.')
-        return(display_synonyms,f'{emoji} *{word}* is {rarity} and {ratio:.1f}x more common than *{best_syn}* in literature.')
+            commonality = f'{emoji} *{word}* is {rarity} and about as common as *{best_syn}* in literature.'
+        else:
+            commonality = f'{emoji} *{word}* is {rarity} and {ratio:.1f}x more common than *{best_syn}* in literature.'
     else:
         ratio = best_syn_freq / wotd_freq
         if ratio < 1.5:
-            return(display_synonyms,f'{emoji} *{word}* is {rarity} and about as common as *{best_syn}* in literature.')
-        return(display_synonyms,f'{emoji} *{word}* is {rarity} and {ratio:.1f}x less common than *{best_syn}* in literature.')
+            commonality = f'{emoji} *{word}* is {rarity} and about as common as *{best_syn}* in literature.'
+        else:
+            commonality = f'{emoji} *{word}* is {rarity} and {ratio:.1f}x less common than *{best_syn}* in literature.'
+    
+    return display_synonyms, filtered_out_synonyms, commonality
 
 
 def post_to_discord(insight, chart_buf):
@@ -610,6 +639,7 @@ def main():
     # print(f"[{ts()}] Word: {word}, Synonyms: {synonyms}") # DEBUG
 
     chart_buf = None
+    filtered_out_synonyms = []  # Initialize for later use
     if not synonyms:
         print(f"[{ts()}] No synonyms found, cannot compare.")
         ngram_data = get_ngrams_data([word])
@@ -631,7 +661,7 @@ def main():
             if not no_post_mode: post_to_discord(f'Not enough data to calculate commonality for "{word}".', None)
             print(f"[{ts()}] Posted to Discord successfully.")
         else:
-            display_synonyms, commonality = build_insight(word, synonyms, ngram_data)
+            display_synonyms, filtered_out_synonyms, commonality = build_insight(word, synonyms, ngram_data)
             chart_buf = generate_chart(ngram_data, [word] + display_synonyms)
 
     ipa, regions = get_wiktionary_data(word)
@@ -678,7 +708,14 @@ def main():
         print(f"[{ts()}] No etymology data found for {word}.")
 
     insight_parts.append(commonality)
+    
     insight = "\n".join(insight_parts)
+    
+    # Add note about synonyms not plotted due to frequency disparity
+    if filtered_out_synonyms:
+        synonym_word = "Synonym" if len(filtered_out_synonyms) == 1 else "Synonyms"
+        filtered_list = ", ".join(filtered_out_synonyms)
+        insight += f"\n{synonym_word} not plotted: {filtered_list}"
     print(f"[{ts()}] Insight: {insight}")
 
     if not no_post_mode: post_to_discord(insight, chart_buf)
