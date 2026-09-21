@@ -1,56 +1,32 @@
 import os
-import io
-import re
 import requests
-import matplotlib.pyplot as plt
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from dotenv import load_dotenv
-from unidecode import unidecode
-from urllib.parse import quote
+from word_tools import Word_Tools
+from mw_dict_tools import MW_Dict_Tools
+from wik_dict_tools import Wik_Dict_Tools
 
 # Load secrets from .env for local testing
 load_dotenv()
 
 # DEBUG Flag: Set to True to show debug output, False to hide
-DEBUG = False
+DEBUG = True
 
 MW_DI_API_KEY = os.environ["MW_DI_API_KEY"]
 MW_TH_API_KEY = os.environ["MW_TH_API_KEY"]
 DISCORD_WEBHOOK_URL = os.environ["DISCORD_WEBHOOK_URL"]
 
-NGRAMS_START_YEAR = 1900
-NGRAMS_END_YEAR = 2019
-
-
 def ts():
     """Return current timestamp string for logging."""
     return (f"{datetime.now():%Y-%m-%d %H:%M:%S.%f}")[:-5]
-
 
 def debug(message):
     """Print debug message only if DEBUG flag is True."""
     if DEBUG:
         print(f"[{ts()}] DEBUG: {message}")
 
-
-def get_frequency_tier_emoji(frequency):
-    """Return a frequency tier emoji based on rarity label."""
-    if frequency >= 1e-4:
-        return "🟢"  # very common
-    elif frequency >= 1e-5:
-        return "🟢"  # common
-    elif frequency >= 1e-6:
-        return "🟡"  # moderately common
-    elif frequency >= 1e-7:
-        return "🟡"  # uncommon
-    elif frequency >= 1e-8:
-        return "🔴"  # rare
-    else:
-        return "🔴"  # very rare
-
-
-def get_wotd():
+def get_wotd(mw_dict_tools):
     """Fetch the Word of the Day from MW RSS feed, then look up synonyms via the API."""
     # Step 1: Get the word from the RSS feed
     rss_url = "https://www.merriam-webster.com/wotd/feed/rss2"
@@ -61,564 +37,19 @@ def get_wotd():
     root = ET.fromstring(response.content)
     first_item = root.find(".//item")
     word = first_item.find("title").text.strip().lower()
-    # word = "churlish" # DEBUG
+    word = "churlish" # DEBUG
     print(f"[{ts()}] WOTD from RSS: {word}")
 
     # Step 2: Get the sense index from dictionary (to use correct thesaurus sense)
-    dict_result = get_mw_dictionary_data(word)
+    dict_result = mw_dict_tools.get_mw_dictionary_data(word)
     if dict_result and len(dict_result) >= 7:
         sense_idx = dict_result[6]  # 7th element is the sense index
     else:
         sense_idx = 0  # Default to first sense if dictionary lookup fails
     
     # Step 3: Look up synonyms via the Collegiate Thesaurus API using the correct sense
-    synonyms = get_mw_thesaurus_data(word, sense_idx)
+    synonyms = mw_dict_tools.get_mw_thesaurus_data(word, sense_idx)
     return word, synonyms
-
-
-def get_mw_thesaurus_data(word, target_sense_idx=0):
-    """Fetch synonyms from the MW Collegiate Thesaurus API.
-    
-    Args:
-        word: The word to look up
-        target_sense_idx: Which sense group to use (0-based index). Default 0 = first sense.
-    
-    Returns:
-        List of synonyms from the target sense group
-    """
-    api_url = f"https://www.dictionaryapi.com/api/v3/references/thesaurus/json/{quote(word)}?key={MW_TH_API_KEY}"
-
-    api_response = requests.get(api_url)
-    api_response.raise_for_status()
-    data = api_response.json()
-
-    synonyms = []
-    for entry in data:
-        if isinstance(entry, dict) and "meta" in entry:
-            meta = entry["meta"]
-            syn_groups = meta.get("syns", [])
-            
-            debug(f"Thesaurus for '{word}': found {len(syn_groups)} sense group(s)")
-            debug(f"  Using sense index {target_sense_idx}")
-            
-            # Use only the target sense group
-            if target_sense_idx < len(syn_groups):
-                syn_list = syn_groups[target_sense_idx]
-                debug(f"  Sense {target_sense_idx}: {len(syn_list)} synonym(s)")
-                for syn in syn_list:
-                    if syn.lower() != word.lower() and syn.lower() not in synonyms:
-                        synonyms.append(re.sub(r'[()]', '', syn).lower().strip())
-            else:
-                debug(f"  WARNING: Requested sense index {target_sense_idx} but only {len(syn_groups)} sense(s) available. Using sense 0.")
-                if syn_groups:
-                    for syn in syn_groups[0]:
-                        if syn.lower() != word.lower() and syn.lower() not in synonyms:
-                            synonyms.append(re.sub(r'[()]', '', syn).lower().strip())
-            
-            break  # only use first dictionary entry
-    
-    debug(f"Collected {len(synonyms)} unique synonym(s) from sense {target_sense_idx}")
-    return synonyms
-
-
-def get_mw_dictionary_data(word):
-    """Fetch definition, part of speech, etymology, example sentence, and audio pronunciation URL from the MW Collegiate Dictionary API."""
-    api_url = f"https://www.dictionaryapi.com/api/v3/references/collegiate/json/{quote(unidecode(word))}?key={MW_DI_API_KEY}"
-    response = requests.get(api_url)
-    response.raise_for_status()
-    data = response.json()
-    debug(f"API response type: {type(data)}, length: {len(data) if isinstance(data, list) else 'N/A'}")
-    if isinstance(data, list) and len(data) > 0:
-        debug(f"First item type: {type(data[0])}")
-
-    if not data or not isinstance(data[0], dict):
-        debug(f"API returned empty/malformed response for '{word}': {data}")
-        return None, None, None, None, None, None
-
-    # Always use first entry for POS, pronunciation, and audio (most complete phonetic data)
-    first_entry = data[0]
-    
-    # Loop through entries to find the one with the best definition (prefer current over obsolete/archaic)
-    definition_entry = None
-    fallback_entry = None
-    best_sense_idx = 0  # Track which sense index is the best (0-based)
-    
-    for candidate in data:
-        if not isinstance(candidate, dict):
-            continue
-        
-        # Check if this entry has any non-obsolete/archaic definitions
-        defs = candidate.get('def', [])
-        has_current = False
-        current_sense_idx = 0  # Track sense index within this search
-        
-        if defs:
-            for def_block in defs:
-                sseq = def_block.get('sseq', [])
-                sense_idx = 0  # Counter for sense groups
-                for sense_group in sseq:
-                    if isinstance(sense_group, list):
-                        for sense_item in sense_group:
-                            if isinstance(sense_item, list) and len(sense_item) >= 2:
-                                sense_data = sense_item[1]
-                                if isinstance(sense_data, dict):
-                                    sls = sense_data.get('sls', [])
-                                    is_obsolete = 'obsolete' in sls if isinstance(sls, list) else False
-                                    is_archaic = 'archaic' in sls if isinstance(sls, list) else False
-                                    if not (is_obsolete or is_archaic):
-                                        has_current = True
-                                        current_sense_idx = sense_idx
-                                        break
-                            sense_idx += 1
-                        if has_current:
-                            break
-                if has_current:
-                    break
-        
-        # Use first entry with current definitions
-        if has_current:
-            definition_entry = candidate
-            best_sense_idx = current_sense_idx
-            break
-        # Or save first entry as fallback if all are obsolete/archaic
-        elif not fallback_entry:
-            fallback_entry = candidate
-    
-    # Use fallback if no current definitions found
-    if not definition_entry:
-        definition_entry = fallback_entry
-        best_sense_idx = 0
-    
-    if not definition_entry:
-        debug(f"No valid entry found for '{word}'")
-        return None, None, None, None, None, None, 0
-    
-    # DEBUG: Print the entry structures
-    debug(f"First entry keys: {first_entry.keys()}")
-    debug(f"Definition entry keys: {definition_entry.keys()}")
-    if 'def' in definition_entry:
-        debug(f"def structure: {definition_entry['def']}")
-
-    # Extract part of speech from first entry (most reliable)
-    pos = first_entry.get('fl', 'word')  # 'fl' is functional label (part of speech)
-
-    # Extract definition (from best sense index with current definitions)
-    definition = None
-    formality = None  # Will be set when we extract the definition
-    defs = definition_entry.get('def', [])
-    
-    if defs:
-        # Navigate the nested structure to find the definition at best_sense_idx
-        sense_counter = 0
-        for def_block in defs:
-            sseq = def_block.get('sseq', [])
-            for sense_group in sseq:
-                if isinstance(sense_group, list):
-                    for sense_item in sense_group:
-                        # sense_item is a list like ['sense', {sense_data}]
-                        if isinstance(sense_item, list) and len(sense_item) >= 2:
-                            sense_data = sense_item[1]  # Get the dict part
-                            if isinstance(sense_data, dict):
-                                # Check if this is the best sense we identified
-                                if sense_counter == best_sense_idx:
-                                    # This is the sense we want! Extract its definition and formality
-                                    dt = sense_data.get('dt', [])
-                                    debug(f"Extracting definition from sense index {sense_counter}")
-                                    debug(f"Found dt array: {dt}")
-                                    
-                                    # Extract register/formality info (sls - sense-level status)
-                                    # Check both def_block level and sense_data level (yeet has it at def_block level)
-                                    sls_from_block = def_block.get('sls', [])
-                                    sls_from_sense = sense_data.get('sls', [])
-                                    sls = sls_from_block + sls_from_sense  # Combine both if they exist
-                                    
-                                    register_labels = []
-                                    if isinstance(sls, list):
-                                        for label in sls:
-                                            # Skip archaic/obsolete (already filtered), include all other registers
-                                            if label not in ['archaic', 'obsolete']:
-                                                # Capitalize for display: 'slang' -> 'Slang'
-                                                register_labels.append(label.capitalize())
-                                    
-                                    # Format formality: show only if non-standard register exists
-                                    if register_labels:
-                                        formality = ', '.join(register_labels)
-                                    debug(f"Extracted formality: {formality}")
-                                    
-                                    if dt:
-                                        for dt_item in dt:
-                                            debug(f"dt_item: {dt_item}")
-                                            if isinstance(dt_item, list) and len(dt_item) >= 2:
-                                                if dt_item[0] == 'text':
-                                                    definition = dt_item[1]
-                                                    debug(f"Extracted text definition: {definition}")
-                                                    break
-                                    if definition:
-                                        break
-                            sense_counter += 1
-                    if definition:
-                        break
-            if definition:
-                break
-    
-    # Clean up definition markup if found
-    if definition:
-        # Merriam-Webster API markup patterns:
-        # {d_link|word|...} — definition link
-        # {sx|word||...} — cross-reference/synonym  
-        # {dxt|word||...} — definition text reference
-        # {it}text{/it} — italics
-        # {bc} — "begin concept" marker
-        # {dx_def}...{/dx_def} — definition cross-reference section
-        
-        # Extract words from link markup BEFORE removing braces
-        definition = re.sub(r'\{d_link\|([^|]+)\|[^}]*\}', r'\1', definition)
-        definition = re.sub(r'\{sx\|([^|]+)\|\|[^}]*\}', r'\1', definition)
-        definition = re.sub(r'\{dxt\|([^|]+)\|[^|]*\|[^}]*\}', r'\1', definition)
-        definition = re.sub(r'\{dx_def\}.*?\{/dx_def\}', '', definition)
-        
-        # Convert italics and remove other markup
-        definition = re.sub(r'\{it\}(.*?)\{/it\}', r'*\1*', definition)
-        definition = re.sub(r'\{bc\}', '', definition)
-        definition = re.sub(r'\{[^}]+\}', '', definition)
-        definition = definition.strip()
-        definition = re.sub(r' +', ' ', definition)
-        debug(f"Cleaned definition: {definition}")
-    else:
-        print(f"[{ts()}] WARNING: Could not extract definition for {word}")
-
-    # Extract first example sentence - search across ALL def_blocks and senses (from definition_entry)
-    example_sentence = None
-    defs = definition_entry.get('def', [])
-    for def_block in defs:
-        if example_sentence:
-            break
-        sseq = def_block.get('sseq', [])
-        for sense_group in sseq:
-            if example_sentence:
-                break
-            if isinstance(sense_group, list):
-                for sense_item in sense_group:
-                    # sense_item is a list like ['sense', {sense_data}]
-                    if isinstance(sense_item, list) and len(sense_item) >= 2:
-                        # Safely get sense_data
-                        if sense_item[0] != 'sense':
-                            continue
-                        sense_data = sense_item[1] if isinstance(sense_item[1], dict) else None
-                        if not sense_data:
-                            continue
-                            
-                        # Look for 'vis' in the dt array
-                        dt = sense_data.get('dt', [])
-                        if dt and isinstance(dt, list):
-                            for dt_item in dt:
-                                if isinstance(dt_item, list) and len(dt_item) >= 2:
-                                    if dt_item[0] != 'vis':
-                                        continue
-                                    vis_list = dt_item[1] if isinstance(dt_item[1], list) else None
-                                    if not vis_list or len(vis_list) == 0:
-                                        continue
-                                    
-                                    # Safely get first example
-                                    first_example = vis_list[0] if isinstance(vis_list[0], dict) else None
-                                    if first_example and 't' in first_example:
-                                        example_sentence = first_example['t']
-                                        # Clean up markup
-                                        example_sentence = re.sub(r'\{it\}(.*?)\{/it\}', r'*\1*', example_sentence)
-                                        example_sentence = re.sub(r'\{wi\}(.*?)\{/wi\}', r'*\1*', example_sentence)
-                                        example_sentence = re.sub(r'\{[^}]+\}', '', example_sentence)
-                                        example_sentence = example_sentence.strip()
-                                        break
-                        if example_sentence:
-                            break
-                    if example_sentence:
-                        break
-    
-    if not example_sentence:
-        print(f"[{ts()}] WARNING: Could not extract example sentence for {word}")
-
-    # Extract etymology (from definition_entry)
-    etymology = None
-    et = definition_entry.get('et', None)
-    if et:
-        text = ""
-        for item in et:
-            if item[0] == 'text':
-                text = item[1]
-                break
-        if text:
-            debug(f"Etymology raw text before cleanup: {text[:200]}")
-            # Use same markup patterns as definition cleanup (see above)
-            text = re.sub(r'\{it\}(.*?)\{/it\}', r'*\1*', text)
-            
-            # Extract d_link content: {d_link|word|...} → word
-            text = re.sub(r'\{d_link\|([^|]+)\|[^}]*\}', r'\1', text)
-            
-            # Handle dx_ety pattern BEFORE generic dxt extraction
-            # Format: {dx_ety}see {dxt|word:num||}{/dx_ety} → — see word entry num
-            dx_ety_match = re.search(r'\{dx_ety\}see \{dxt\|([^|:]+):(\d+)\|\|\}\{/dx_ety\}', text)
-            if dx_ety_match:
-                word_ref = dx_ety_match.group(1)
-                entry_num = dx_ety_match.group(2)
-                debug(f"Found dx_ety pattern: word='{word_ref}', entry='{entry_num}'")
-                replacement = f'— see {word_ref} entry {entry_num}'
-                text = text.replace(dx_ety_match.group(0), replacement)
-            else:
-                # Remove dx_ety if we couldn't parse it
-                text = re.sub(r'\{dx_ety\}.*?\{/dx_ety\}', '', text)
-            
-            # Extract dxt content: {dxt|word|...} → word (for non-dx_ety patterns)
-            text = re.sub(r'\{dxt\|([^|:]+)(?::[^\|]*)?\|[^|]*\|[^}]*\}', r'\1', text)
-            
-            # Handle et_link: format varies - {et_link|word|variant}
-            # Examples: {et_link|colloquy|colloquy}, {et_link|-al:1|-al:1}, {et_link|scruple|2}
-            # Important: if both params are identical, just remove the tag (text is already mentioned)
-            et_link_matches = re.findall(r'\{et_link\|([^|]+)\|([^}]+)\}', text)
-            debug(f"Found {len(et_link_matches)} et_link match(es): {et_link_matches}")
-            
-            if et_link_matches:
-                for ref_word, ref_variant in et_link_matches:
-                    if ref_word == ref_variant:
-                        # Check if there's a preceding italic version of this word
-                        # Extract just the word part (without :number suffix)
-                        word_only = ref_word.split(':')[0]
-                        italic_pattern = f'{{it}}{word_only}{{/it}}'
-                        tag_position = text.find(f'{{et_link|{ref_word}|{ref_variant}}}')
-                        preceding_text = text[max(0, tag_position - 100):tag_position]
-                        
-                        if italic_pattern in preceding_text or f'{{it}}' in preceding_text:
-                            # Preceding italic found: remove the duplicate tag
-                            text = text.replace(f'{{et_link|{ref_word}|{ref_variant}}}', '')
-                        else:
-                            # No preceding italic: extract the word
-                            replacement = word_only
-                            text = text.replace(f'{{et_link|{ref_word}|{ref_variant}}}', replacement)
-                    else:
-                        is_prefix = ref_word.startswith('-')
-                        digit_match = re.search(r'(\d+)', ref_variant)
-                        
-                        if not is_prefix and digit_match:
-                            # Full word with entry number → "— see word entry number"
-                            entry_num = digit_match.group(1)
-                            replacement = f'— see {ref_word} entry {entry_num}'
-                        else:
-                            # Prefix or no digit → just extract word/prefix
-                            replacement = ref_word.split(':')[0] if ':' in ref_word else ref_word
-                        
-                        text = text.replace(f'{{et_link|{ref_word}|{ref_variant}}}', replacement)
-            # Remove any et_link that couldn't be parsed (malformed)
-            text = re.sub(r'\{et_link\|.*?\}', '', text)
-            
-            # Remove "more at" references: {ma}{mat|...}{/ma}
-            text = re.sub(r'\{ma\}\{mat\|(.*?)\|.*?\}\{/ma\}', '', text)
-            
-            # Remove any remaining markup
-            text = re.sub(r'\{[^}]+\}', '', text)
-            text = re.sub(r' +', ' ', text)
-            text = text.strip()
-            debug(f"Etymology cleaned text: {text}")
-            etymology = f'📖 **Etymology of *{word}*:** {text}'
-
-    # Extract audio URLs and pronunciations from first entry (best phonetic data)
-    audio_urls = []
-    prn = []
-    prs = first_entry.get('hwi', {}).get('prs', [])
-    for pr in prs:
-        if 'sound' in pr:
-            audio_file = pr['sound']['audio']
-            if audio_file.startswith('bix'):
-                subdir = 'bix'
-            elif audio_file.startswith('gg'):
-                subdir = 'gg'
-            elif audio_file[0].isdigit():
-                subdir = 'number'
-            else:
-                subdir = audio_file[0]
-            audio_urls.append(f"https://media.merriam-webster.com/audio/prons/en/us/mp3/{subdir}/{audio_file}.mp3")
-        if 'mw' in pr:
-            mw = pr['mw']
-            prn.append(mw)
-    debug(f"pronunciation = {prn}")
-    debug(f"Best sense index for '{word}': {best_sense_idx}")
-    debug(f"Formality: {formality}")
-
-    return pos, definition, example_sentence, etymology, audio_urls if audio_urls else None, prn if prn else None, best_sense_idx, formality
-
-
-def get_ngrams_data(words):
-    """Fetch frequency data from Google Ngrams for a list of words."""
-    content = ",".join(words)
-    url = (
-        f"https://books.google.com/ngrams/json"
-        f"?content={content}"
-        f"&year_start={NGRAMS_START_YEAR}"
-        f"&year_end={NGRAMS_END_YEAR}"
-        f"&corpus=en-2019"
-        f"&smoothing=3"
-    )
-    response = requests.get(url)
-    response.raise_for_status()
-    return response.json()
-
-
-def get_recent_frequency(ngram_data, word):
-    """Get the average frequency of a word over the last 10 years of data."""
-    for entry in ngram_data:
-        if entry["ngram"].lower() == word.lower():
-            recent = entry["timeseries"][-10:]
-            return sum(recent) / len(recent) if recent else 0
-    return 0
-
-
-def get_rarity_label(frequency):
-    """Return a rarity label based on ngram frequency thresholds."""
-    # These thresholds are empirically derived. See the calibrate script and results
-    if frequency >= 1e-4:
-        return "very common"
-    elif frequency >= 1e-5:
-        return "common"
-    elif frequency >= 1e-6:
-        return "moderately common"
-    elif frequency >= 1e-7:
-        return "uncommon"
-    elif frequency >= 1e-8:
-        return "rare"
-    else:
-        return "very rare"
-
-
-def generate_chart(ngram_data, words):
-    """Generate a frequency chart image and return it as bytes."""
-    plt.style.use('dark_background')
-    fig, ax = plt.subplots(figsize=(10, 5))
-
-    for entry in ngram_data:
-        if entry["ngram"].lower() in [w.lower() for w in words]:
-            years = list(range(NGRAMS_START_YEAR, NGRAMS_END_YEAR + 1))
-            ax.plot(years, entry["timeseries"], label=entry["ngram"])
-
-    ax.set_title("Word Frequency Over Time (Google Ngrams)", fontsize='20')
-    ax.set_xlabel("Year", fontsize="x-large")
-    ax.set_ylabel("Frequency (%)", fontsize="x-large")
-    ax.legend(fontsize='x-large')
-    ax.grid(True, alpha=0.3)
-    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x*100:.4f}%'))
-    plt.tight_layout()
-
-    buf = io.BytesIO()
-    plt.savefig(buf, format="png", dpi=150)
-    buf.seek(0)
-    plt.close()
-    return buf
-
-
-def get_wiktionary_data(word):
-    """Fetch regional/usage labels and IPA pronunciation from Wiktionary."""
-    headers = {'User-Agent': 'WOTDCommonalityBot/1.0 (educational Discord bot; contact via GitHub)'}
-    url = f"https://en.wiktionary.org/w/api.php?action=parse&page={quote(word)}&prop=wikitext&format=json"
-    try:
-        response = requests.get(url, headers=headers, timeout=5)
-        response.raise_for_status()
-        data = response.json()
-
-        if 'parse' not in data:
-            return None, None
-
-        wikitext = data['parse']['wikitext']['*']
-
-        # Extract English section only
-        english_match = re.search(r'==English==\n(.*?)(?:\n==(?!=)|\Z)', wikitext, re.DOTALL)
-        if not english_match:
-            return None, None
-        english_section = english_match.group(1)
-
-        # Extract IPA
-        ipa_match = re.search(r'\{\{IPA\|en\|(/[^/]+/)', english_section)
-        ipa = ipa_match.group(1) if ipa_match else None
-        if not ipa:
-            print(f"[{ts()}] Warning: No IPA found for {word}")
-
-        # Extract regional labels
-        regional_keywords = {
-            'Australia', 'Australian', 'New Zealand', 'British',
-            'UK', 'US', 'American', 'Canada', 'Canadian',
-            'Ireland', 'Irish', 'Scotland', 'Scottish'
-        }
-        lb_matches = re.findall(r'\{\{lb\|en\|(.*?)\}\}', english_section)
-        found_regions = []
-        for match in lb_matches:
-            parts = match.split('|')
-            for part in parts:
-                part = part.strip()
-                if part in regional_keywords and part not in found_regions:
-                    found_regions.append(part)
-        regions = found_regions if found_regions else None
-        return ipa, regions
-    except requests.RequestException as e:
-        print(f"[{ts()}] Wiktionary lookup failed for {word}: {e}")
-        return None, None
-
-
-def build_insight(word, synonyms, ngram_data):
-    """Build the insight text comparing the WOTD to its common synonyms.
-    Filters out synonyms >5x or <0.2x the WOTD frequency for display.
-    Always uses best overall synonym for comparison in insight text."""
-    if not ngram_data:
-        return [], [], "Not enough data to calculate commonality."
-
-    wotd_freq = get_recent_frequency(ngram_data, word)
-    if wotd_freq == 0:
-        return [], [], "Not enough data to calculate commonality."
-    
-    # Calculate frequencies for all synonyms
-    syn_freqs = {s: get_recent_frequency(ngram_data, s) for s in synonyms}
-    
-    # Find the best (most common) synonym overall for the comparison line
-    best_syn = max(synonyms, key=lambda s: syn_freqs[s])
-    best_syn_freq = syn_freqs[best_syn]
-    
-    # Filter synonyms by 0.2x-5x threshold
-    filtered_synonyms = []
-    out_of_range_synonyms = []
-    
-    for syn, syn_freq in syn_freqs.items():
-        if syn_freq == 0:
-            out_of_range_synonyms.append(syn)
-            continue
-        
-        ratio = syn_freq / wotd_freq
-        if 0.2 <= ratio <= 5:
-            filtered_synonyms.append(syn)
-        else:
-            out_of_range_synonyms.append(syn)
-    
-    # Use top 3 of filtered synonyms for display
-    display_synonyms = sorted(filtered_synonyms, key=lambda s: syn_freqs[s], reverse=True)[:3]
-    print(f"[{ts()}] Display Synonyms: {display_synonyms}")
-    
-    # Cap the out-of-range list at 3 items for the "not plotted" note
-    filtered_out_synonyms = sorted(out_of_range_synonyms, key=lambda s: syn_freqs[s], reverse=True)[:3]
-    print(f"[{ts()}] Not Plotted Synonyms (outside 0.2x-5x range): {filtered_out_synonyms}")
-    
-    # Build the commonality comparison using the best synonym overall
-    rarity = get_rarity_label(wotd_freq)
-    emoji = get_frequency_tier_emoji(wotd_freq)
-
-    if wotd_freq >= best_syn_freq:
-        ratio = wotd_freq / best_syn_freq
-        if ratio < 1.5:
-            commonality = f'{emoji} *{word}* is {rarity} and about as common as *{best_syn}* in literature.'
-        else:
-            commonality = f'{emoji} *{word}* is {rarity} and {ratio:.1f}x more common than *{best_syn}* in literature.'
-    else:
-        ratio = best_syn_freq / wotd_freq
-        if ratio < 1.5:
-            commonality = f'{emoji} *{word}* is {rarity} and about as common as *{best_syn}* in literature.'
-        else:
-            commonality = f'{emoji} *{word}* is {rarity} and {ratio:.1f}x less common than *{best_syn}* in literature.'
-    
-    return display_synonyms, filtered_out_synonyms, commonality
-
 
 def post_to_discord(insight, chart_buf):
     """Post the insight text and chart image to Discord via webhook."""
@@ -632,40 +63,42 @@ def post_to_discord(insight, chart_buf):
 
 
 def main():
+    word_tools = Word_Tools(DEBUG, MW_DI_API_KEY, MW_TH_API_KEY)
+    mw_dict_tools = MW_Dict_Tools(DEBUG, MW_DI_API_KEY, MW_TH_API_KEY)
+    wik_dict_tools = Wik_Dict_Tools(DEBUG, MW_DI_API_KEY, MW_TH_API_KEY)
     print(f"[{ts()}] Fetching Word of the Day and posting to Discord")
     no_post_mode = False  # DEBUG: set to True to run without posting to Discord
     if not no_post_mode: post_to_discord('https://www.merriam-webster.com/word-of-the-day', None)
-    word, synonyms = get_wotd()
+    word, synonyms = get_wotd(mw_dict_tools)
     # print(f"[{ts()}] Word: {word}, Synonyms: {synonyms}") # DEBUG
-
     chart_buf = None
     filtered_out_synonyms = []  # Initialize for later use
     if not synonyms:
         print(f"[{ts()}] No synonyms found, cannot compare.")
-        ngram_data = get_ngrams_data([word])
+        ngram_data = word_tools.get_ngrams_data([word])
         if ngram_data:
-            chart_buf = generate_chart(ngram_data, [word])
-            wotd_freq = get_recent_frequency(ngram_data, word)
-            rarity = get_rarity_label(wotd_freq)
-            emoji = get_frequency_tier_emoji(wotd_freq)
+            chart_buf = word_tools.generate_chart(ngram_data, [word])
+            wotd_freq = word_tools.get_recent_frequency(ngram_data, word)
+            rarity = word_tools.get_rarity_label(wotd_freq)
+            emoji = word_tools.get_frequency_tier_emoji(wotd_freq)
             commonality = f'{emoji} *{word}* is {rarity}. No thesaurus entry found — showing frequency over time only.'
         else:
             commonality = f'No thesaurus entry found for *{word}* — commonality data unavailable for today\'s word.'
     else:
         words = [word] + synonyms
         print(f"[{ts()}] Fetching Ngrams data for: {words}")
-        ngram_data = get_ngrams_data(words)
+        ngram_data = word_tools.get_ngrams_data(words)
 
         if not ngram_data:
             print(f"[{ts()}] No Ngrams data found for {words}, cannot compare.")
             if not no_post_mode: post_to_discord(f'Not enough data to calculate commonality for "{word}".', None)
             print(f"[{ts()}] Posted to Discord successfully.")
         else:
-            display_synonyms, filtered_out_synonyms, commonality = build_insight(word, synonyms, ngram_data)
-            chart_buf = generate_chart(ngram_data, [word] + display_synonyms)
+            display_synonyms, filtered_out_synonyms, commonality = word_tools.build_insight(word, synonyms, ngram_data)
+            chart_buf = word_tools.generate_chart(ngram_data, [word] + display_synonyms)
 
-    ipa, regions = get_wiktionary_data(word)
-    pos, definition, example_sentence, etymology, audio_urls, prn, sense_idx, formality = get_mw_dictionary_data(word)
+    ipa, regions = wik_dict_tools.get_wiktionary_data(word)
+    pos, definition, example_sentence, etymology, audio_urls, prn, sense_idx, formality = mw_dict_tools.get_mw_dictionary_data(word)
 
     # Build insight in desired order: word+definition, pronunciation, example sentence, commonality, regional note
     insight_parts = []
