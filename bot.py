@@ -37,7 +37,7 @@ def get_wotd(mw_dict_tools):
     root = ET.fromstring(response.content)
     first_item = root.find(".//item")
     word = first_item.find("title").text.strip().lower()
-    word = "churlish" # DEBUG
+    # word = "churlish" # DEBUG
     print(f"[{ts()}] WOTD from RSS: {word}")
 
     # Step 2: Get the sense index from dictionary (to use correct thesaurus sense)
