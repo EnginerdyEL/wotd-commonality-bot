@@ -70,11 +70,14 @@ class Word_Tools(Tools):
             return "very rare"
 
 
-    def generate_chart(self, ngram_data, words):
+    def generate_chart(self, wotd):
         """Generate a frequency chart image and return it as bytes."""
         plt.style.use('dark_background')
-        fig, ax = plt.subplots(figsize=(10, 5))
-
+        fig, ax = plt.subplots(figsize=(10, 8))
+        # Baseline words for comparison
+        words = ["the", "house", "apple", "cushion", "thimble", "incandescence", wotd]
+        ngram_data = self.get_ngrams_data(words)
+    
         for entry in ngram_data:
             if entry["ngram"].lower() in [w.lower() for w in words]:
                 years = list(range(self.NGRAMS_START_YEAR, self.NGRAMS_END_YEAR + 1))
@@ -83,9 +86,10 @@ class Word_Tools(Tools):
         ax.set_title("Word Frequency Over Time (Google Ngrams)", fontsize='20')
         ax.set_xlabel("Year", fontsize="x-large")
         ax.set_ylabel("Frequency (%)", fontsize="x-large")
+        ax.set_yscale("log")
         ax.legend(fontsize='x-large')
         ax.grid(True, alpha=0.3)
-        ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x*100:.4f}%'))
+        ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x*100:.6f}%'))
         plt.tight_layout()
 
         buf = io.BytesIO()
@@ -133,7 +137,7 @@ class Word_Tools(Tools):
         
         # Cap the out-of-range list at 3 items for the "not plotted" note
         filtered_out_synonyms = sorted(out_of_range_synonyms, key=lambda s: syn_freqs[s], reverse=True)[:3]
-        print(f"[{self.ts()}] Not Plotted Synonyms (outside 0.2x-5x range): {filtered_out_synonyms}")
+        print(f"[{self.ts()}] Synonyms: {filtered_out_synonyms}")
         
         # Build the commonality comparison using the best synonym overall
         rarity = self.get_rarity_label(wotd_freq)

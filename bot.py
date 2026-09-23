@@ -32,7 +32,6 @@ def get_wotd(mw_dict_tools):
     rss_url = "https://www.merriam-webster.com/wotd/feed/rss2"
     response = requests.get(rss_url)
     response.raise_for_status()
-
     # Parse the word from the RSS XML. The first item in the feed is today's word
     root = ET.fromstring(response.content)
     first_item = root.find(".//item")
@@ -72,12 +71,12 @@ def main():
     word, synonyms = get_wotd(mw_dict_tools)
     # print(f"[{ts()}] Word: {word}, Synonyms: {synonyms}") # DEBUG
     chart_buf = None
-    filtered_out_synonyms = []  # Initialize for later use
+    filtered_out_synonyms = [] 
     if not synonyms:
         print(f"[{ts()}] No synonyms found, cannot compare.")
         ngram_data = word_tools.get_ngrams_data([word])
         if ngram_data:
-            chart_buf = word_tools.generate_chart(ngram_data, [word])
+            chart_buf = word_tools.generate_chart(word)
             wotd_freq = word_tools.get_recent_frequency(ngram_data, word)
             rarity = word_tools.get_rarity_label(wotd_freq)
             emoji = word_tools.get_frequency_tier_emoji(wotd_freq)
@@ -95,7 +94,7 @@ def main():
             print(f"[{ts()}] Posted to Discord successfully.")
         else:
             display_synonyms, filtered_out_synonyms, commonality = word_tools.build_insight(word, synonyms, ngram_data)
-            chart_buf = word_tools.generate_chart(ngram_data, [word] + display_synonyms)
+            chart_buf = word_tools.generate_chart(word)
 
     ipa, regions = wik_dict_tools.get_wiktionary_data(word)
     pos, definition, example_sentence, etymology, audio_urls, prn, sense_idx, formality = mw_dict_tools.get_mw_dictionary_data(word)
