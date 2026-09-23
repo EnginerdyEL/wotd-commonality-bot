@@ -379,7 +379,7 @@ class MW_Dict_Tools(Tools):
 
         return pos, definition, example_sentence, etymology, audio_urls if audio_urls else None, prn if prn else None, best_sense_idx, formality
 
-    def get_wiktionary_data(self, word):
+
         """Fetch regional/usage labels and IPA pronunciation from Wiktionary."""
         headers = {'User-Agent': 'WOTDCommonalityBot/1.0 (educational Discord bot; contact via GitHub)'}
         url = f"https://en.wiktionary.org/w/api.php?action=parse&page={quote(word)}&prop=wikitext&format=json"

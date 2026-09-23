@@ -7,19 +7,24 @@ Run with: python3 test_bot.py
 
 import sys
 import json
+import os
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
-# Import the functions we need to test
-from bot import (
-    get_mw_dictionary_data,
-    get_mw_thesaurus_data,
-    get_ngrams_data,
-    get_recent_frequency,
-    get_rarity_label
-)
+# Import the classes
+from word_tools import Word_Tools
+from mw_dict_tools import MW_Dict_Tools
+
+# Get API keys from environment
+DEBUG = True
+MW_DI_API_KEY = os.environ["MW_DI_API_KEY"]
+MW_TH_API_KEY = os.environ["MW_TH_API_KEY"]
+
+# Create instances of the tools
+word_tools = Word_Tools(DEBUG, MW_DI_API_KEY, MW_TH_API_KEY)
+mw_dict_tools = MW_Dict_Tools(DEBUG, MW_DI_API_KEY, MW_TH_API_KEY)
 
 # Test cases: (word, description, should_have_synonyms)
 # should_have_synonyms indicates if we expect thesaurus data for integration testing
@@ -38,7 +43,7 @@ def test_dictionary_data(word):
     """Test dictionary data extraction."""
     print(f"\n  Dictionary Extraction:")
     try:
-        pos, definition, example_sentence, etymology, audio_urls, prn, sense_idx, formality = get_mw_dictionary_data(word)
+        pos, definition, example_sentence, etymology, audio_urls, prn, sense_idx, formality = mw_dict_tools.get_mw_dictionary_data(word)
         
         print(f"    ✓ POS: {pos if pos else '(None)'}")
         print(f"    ✓ Definition: {definition[:50] + '...' if definition and len(definition) > 50 else definition if definition else '(None)'}")
@@ -73,7 +78,7 @@ def test_thesaurus_data(word):
     """Test thesaurus/synonym lookup."""
     print(f"\n  Thesaurus Lookup:")
     try:
-        synonyms = get_mw_thesaurus_data(word)
+        synonyms = mw_dict_tools.get_mw_thesaurus_data(word)
         
         if synonyms:
             print(f"    ✓ Found {len(synonyms)} synonym(s): {', '.join(synonyms[:3])}")
@@ -98,22 +103,22 @@ def test_frequency_data(word, synonyms):
         if synonyms:
             words_to_lookup.extend(synonyms[:3])  # Test with word + top 3 synonyms
         
-        ngram_data = get_ngrams_data(words_to_lookup)
+        ngram_data = word_tools.get_ngrams_data(words_to_lookup)
         print(f"    ✓ Fetched ngram data for {len(words_to_lookup)} word(s)")
         
         # Test frequency extraction
-        word_freq = get_recent_frequency(ngram_data, word)
+        word_freq = word_tools.get_recent_frequency(ngram_data, word)
         print(f"    ✓ Recent frequency for '{word}': {word_freq:.2e}")
         
         # Test rarity labeling
-        rarity = get_rarity_label(word_freq)
+        rarity = word_tools.get_rarity_label(word_freq)
         print(f"    ✓ Rarity label: {rarity}")
         
         # Test comparisons with synonyms
         if synonyms:
             print(f"    ✓ Frequency comparisons:")
             for syn in synonyms[:2]:  # Show first 2 synonyms
-                syn_freq = get_recent_frequency(ngram_data, syn)
+                syn_freq = word_tools.get_recent_frequency(ngram_data, syn)
                 if word_freq > 0:
                     ratio = syn_freq / word_freq
                     print(f"      - '{syn}' is {ratio:.1f}x the frequency of '{word}'")
@@ -194,7 +199,7 @@ def test_etymology(etymology_cases_file="etymology_test_cases.json"):
         
         try:
             # Run the bot on this word
-            _, _, _, etymology, _, _, _, _ = get_mw_dictionary_data(word)
+            _, _, _, etymology, _, _, _, _ = mw_dict_tools.get_mw_dictionary_data(word)
             
             if etymology is None:
                 actual_raw = "(None)"
