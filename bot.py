@@ -70,8 +70,7 @@ def main():
     if not no_post_mode: post_to_discord('https://www.merriam-webster.com/word-of-the-day', None)
     word, synonyms = get_wotd(mw_dict_tools)
     # print(f"[{ts()}] Word: {word}, Synonyms: {synonyms}") # DEBUG
-    chart_buf = None
-    filtered_out_synonyms = [] 
+    chart_buf = None 
     if not synonyms:
         print(f"[{ts()}] No synonyms found, cannot compare.")
         ngram_data = word_tools.get_ngrams_data([word])
@@ -93,7 +92,7 @@ def main():
             if not no_post_mode: post_to_discord(f'Not enough data to calculate commonality for "{word}".', None)
             print(f"[{ts()}] Posted to Discord successfully.")
         else:
-            display_synonyms, filtered_out_synonyms, commonality = word_tools.build_insight(word, synonyms, ngram_data)
+            selected_synonyms, commonality = word_tools.build_insight(word, synonyms, ngram_data)
             chart_buf = word_tools.generate_chart(word)
 
     ipa, regions = wik_dict_tools.get_wiktionary_data(word)
@@ -141,13 +140,12 @@ def main():
 
     insight_parts.append(commonality)
     
-    insight = "\n".join(insight_parts)
+    # Add selected synonyms line
+    if selected_synonyms:
+        synonyms_display = ", ".join(selected_synonyms)
+        insight_parts.append(f"Synonyms: {synonyms_display}")
     
-    # Add note about synonyms not plotted due to frequency disparity
-    if filtered_out_synonyms:
-        synonym_word = "Synonym" if len(filtered_out_synonyms) == 1 else "Synonyms"
-        filtered_list = ", ".join(filtered_out_synonyms)
-        insight += f"\n{synonym_word} not plotted: {filtered_list}"
+    insight = "\n".join(insight_parts)
     print(f"[{ts()}] Insight: {insight}")
 
     if not no_post_mode: post_to_discord(insight, chart_buf)

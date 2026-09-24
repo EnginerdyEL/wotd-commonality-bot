@@ -11,15 +11,12 @@ Every day, Wordy automatically:
 4. Looks up and shares pronunciation in IPA format via Wiktionary API
 5. Looks up and shares pronunciation in audio format via MW Collegiate Dictionary API
 6. Extracts and shares an example sentence from MW Dictionary API
-7. Looks up frequency data for the word and its common synonyms via Google Ngrams
-8. Filters synonyms by similar frequency to prevent flatline charts
-9. Posts an insight with frequency tier emoji and rarity comparison
-10. Posts a frequency-over-time chart showing the word and filtered synonyms plotted from 1900–2019
-11. Posts the etymology from the MW Collegiate Dictionary API
-12. Posts formality indicator (slang, informal, etc.) when the word has non-standard register from MW Dictionary API
-13. Posts regional indicators from Wiktionary when applicable
-
-If no thesaurus entry exists for the word, it posts the rarity label and frequency chart for the word alone.
+7. Looks up frequency data for the word via Google Ngrams
+8. Posts a frequency-over-time chart on a logarithmic scale with the word plotted against reference baseline words (common, moderate, rare, very rare)
+9. Displays up to 5 relevant synonyms (closest in frequency + most common)
+10. Posts the etymology from the MW Collegiate Dictionary API
+11. Posts formality indicator (slang, informal, etc.) when the word has non-standard register from MW Dictionary API
+12. Posts regional indicators from Wiktionary when applicable
 
 ## Example Insight output
 
@@ -30,6 +27,8 @@ If no thesaurus entry exists for the word, it posts the rarity label and frequen
 > 💬 Example: "speculates whether it will rain all vacation"
 >
 > 🟡 "speculate" is moderately common and 15.5x less common than "guess" in literature.
+>
+> Synonyms: surmise, conjecture, theorize, guess, hypothesize
 
 > **Yeet** — *verb* — to throw with force and without careful aim
 >
@@ -40,12 +39,14 @@ If no thesaurus entry exists for the word, it posts the rarity label and frequen
 > 🤵 Formality: Slang
 >
 > 🔴 "yeet" is very rare and 850x less common than "throw" in literature.
+>
+> Synonyms: throw, toss, fling, hurl, launch
 
 > **Volition** — *noun* — the power of making a choice or decision
 >
 > 🟡 "volition" is uncommon and 5.2x less common than "autonomy" in literature.
 >
-> Synonyms not plotted: accord, will
+> Synonyms: autonomy, choice, decision, preference, discretion
 
 ## Pronunciation
 
@@ -97,16 +98,11 @@ Formality indicators help learners understand whether a word is typically used i
 
 Possible indicators: Slang, Informal, Vulgar, and others. Standard/formal words (the majority) show no indicator by default to keep output clean. When formality is shown, it reflects the register of the definition sense being displayed (which may differ from other senses of the same word).
 
-## Ngrams Display and Synonym Filtering
+## Frequency Chart and Synonyms
 
-To prevent the word-of-the-day from appearing as a flatline on the chart when a synonym is significantly more or less common, Wordy filters synonyms before display:
+**Logarithmic Scale Chart:** The frequency-over-time chart displays on a logarithmic scale with a baseline of reference words spanning common (e.g., "the", "house") to very rare (e.g., "incandescence"). This allows readers to see the word's absolute rarity position. The word-of-the-day is always plotted alongside these reference words, providing meaningful context for its frequency tier.
 
-- **Threshold:** Only synonyms within 0.2x to 5x the word's frequency are displayed on the chart
-- **Display limit:** Up to 3 filtered synonyms are plotted alongside the word
-- **All synonyms considered:** The bot evaluates all available synonyms, not just the top 3
-- **Comparison always shown:** The rarity comparison in the insight text uses the most common synonym overall (even if it's filtered out of the chart), ensuring learners always see a meaningful frequency ratio
-
-Synonyms filtered out due to frequency disparity are listed at the bottom of the insight ("Synonyms not plotted: ...") so learners know other options exist but are too common or rare to plot meaningfully.
+**Synonym Selection:** From all available synonyms, Wordy selects the closest 2 by frequency distance plus the 3 most common, up to 5 total. This balances showing semantically relevant words (closest in frequency) with common alternatives readers may already know (most frequent). Synonyms are listed as a simple comma-separated line ("Synonyms: a, b, c, d, e") to save space and let readers quickly identify alternatives at similar rarity levels.
 
 ## Tech stack
 
@@ -198,7 +194,7 @@ To quickly check specific words without overwriting `results.csv`, set `SPOT_CHE
 ## Known Limitations
 
 - Etymology and example sentence markup parsing relies on regex chains, which can be fragile with complex MW API markup. A regression test suite tracks this, but manual review is sometimes needed for edge cases.
-- Synonym selection prioritizes semantic relevance by skipping archaic/obsolete senses. However, when multiple current senses exist, the thesaurus API doesn't indicate which is most relevant, so frequency-based ranking is used as a tie-breaker.
+- Synonym selection prioritizes semantic relevance by skipping archaic/obsolete senses. However, when multiple current senses exist, the thesaurus API doesn't indicate which is most relevant, so the selected synonyms may not be most relevant or of the same sense.
 
 ## Future ideas
 
