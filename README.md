@@ -6,17 +6,18 @@ A Discord automation that posts daily insights about the Merriam-Webster Word of
 
 Every day, Wordy automatically:
 1. Posts a link to the Merriam-Webster Word of the Day
-2. Posts the word, part of speech, and primary definition from MW Dictionary API
-3. Fetches the word's synonyms from the MW Collegiate Thesaurus API
-4. Looks up and shares pronunciation in IPA format via Wiktionary API
-5. Looks up and shares pronunciation in audio format via MW Collegiate Dictionary API
-6. Extracts and shares an example sentence from MW Dictionary API
-7. Looks up frequency data for the word via Google Ngrams
-8. Posts a frequency-over-time chart on a logarithmic scale with the word plotted against reference baseline words (common, moderate, rare, very rare)
-9. Displays up to 5 relevant synonyms (closest in frequency + most common)
-10. Posts the etymology from the MW Collegiate Dictionary API
-11. Posts formality indicator (slang, informal, etc.) when the word has non-standard register from MW Dictionary API
-12. Posts regional indicators from Wiktionary when applicable
+2. Extracts the word and its definition from the MW RSS feed (matching the Discord embed exactly)
+3. Posts the word, part of speech, and definition from the RSS feed
+4. Fetches the word's synonyms from the MW Collegiate Thesaurus API
+5. Looks up and shares pronunciation in IPA format via Wiktionary API
+6. Looks up and shares pronunciation in audio format via MW Collegiate Dictionary API
+7. Extracts and shares an example sentence from MW Dictionary API
+8. Looks up frequency data for the word via Google Ngrams
+9. Posts a frequency-over-time chart on a logarithmic scale with the word plotted against reference baseline words (common, moderate, rare, very rare)
+10. Displays up to 5 relevant synonyms (closest in frequency + most common)
+11. Posts the etymology from the MW Collegiate Dictionary API
+12. Posts formality indicator (slang, informal, etc.) when the word has non-standard register from MW Dictionary API
+13. Posts regional indicators from Wiktionary when applicable
 
 ## Example Insight output
 
@@ -54,7 +55,7 @@ Pronunciation via IPA is pulled from Wiktionary, and pronunciation audio sample 
 
 ## Word Definition
 
-The word, part of speech, and primary definition are extracted from the MW Collegiate Dictionary API. This ensures learners get the authoritative first definition without needing to click the Merriam-Webster link.
+The word, part of speech, and primary definition are extracted from the Merriam-Webster RSS feed to match the exact definition shown in the Discord embed. This ensures consistency between the daily WOTD post on Discord and Wordy's output, and avoids cases where the API's primary definition is too short or differs from what MW features on their website. The part of speech is drawn from the MW Dictionary API.
 
 ## Example Sentence
 
@@ -200,6 +201,7 @@ To quickly check specific words without overwriting `results.csv`, set `SPOT_CHE
 
 ### Near term
 
+- Clean up tech debt of old ways to pull the definition and extract relevant synonyms
 - Add "Recent Examples on the Web" — extract from MW dictionary page if available in API, or fetch multiple example sentences and select the most illustrative
 - Add a "rhymes with" section, pulled from Datamuse API with frequency-based filtering
 - Add a "phrases" section, pulled from MW API if available

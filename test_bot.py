@@ -15,7 +15,7 @@ load_dotenv()
 
 # Import the classes
 from word_tools import Word_Tools
-from mw_dict_tools import MW_Dict_Tools
+from mw_tools import MW_Tools
 
 # Get API keys from environment
 DEBUG = True
@@ -24,7 +24,7 @@ MW_TH_API_KEY = os.environ["MW_TH_API_KEY"]
 
 # Create instances of the tools
 word_tools = Word_Tools(DEBUG, MW_DI_API_KEY, MW_TH_API_KEY)
-mw_dict_tools = MW_Dict_Tools(DEBUG, MW_DI_API_KEY, MW_TH_API_KEY)
+mw_tools = MW_Tools(DEBUG, MW_DI_API_KEY, MW_TH_API_KEY)
 
 # Test cases: (word, description, should_have_synonyms)
 # should_have_synonyms indicates if we expect thesaurus data for integration testing
@@ -43,7 +43,7 @@ def test_dictionary_data(word):
     """Test dictionary data extraction."""
     print(f"\n  Dictionary Extraction:")
     try:
-        pos, definition, example_sentence, etymology, audio_urls, prn, sense_idx, formality = mw_dict_tools.get_mw_dictionary_data(word)
+        pos, definition, example_sentence, etymology, audio_urls, prn, sense_idx, formality = mw_tools.get_mw_dictionary_data(word)
         
         print(f"    ✓ POS: {pos if pos else '(None)'}")
         print(f"    ✓ Definition: {definition[:50] + '...' if definition and len(definition) > 50 else definition if definition else '(None)'}")
@@ -78,7 +78,7 @@ def test_thesaurus_data(word):
     """Test thesaurus/synonym lookup."""
     print(f"\n  Thesaurus Lookup:")
     try:
-        synonyms = mw_dict_tools.get_mw_thesaurus_data(word)
+        synonyms = mw_tools.get_mw_thesaurus_data(word)
         
         if synonyms:
             print(f"    ✓ Found {len(synonyms)} synonym(s): {', '.join(synonyms[:3])}")

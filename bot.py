@@ -4,7 +4,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 from dotenv import load_dotenv
 from word_tools import Word_Tools
-from mw_dict_tools import MW_Dict_Tools
+from mw_tools import MW_Tools
 from wik_dict_tools import Wik_Dict_Tools
 
 # Load secrets from .env for local testing
@@ -26,7 +26,7 @@ def debug(message):
     if DEBUG:
         print(f"[{ts()}] DEBUG: {message}")
 
-def get_wotd(mw_dict_tools):
+def get_wotd(mw_tools):
     """Fetch the Word of the Day from MW RSS feed, then look up synonyms via the API."""
     # Step 1: Get the word from the RSS feed
     rss_url = "https://www.merriam-webster.com/wotd/feed/rss2"
@@ -38,37 +38,48 @@ def get_wotd(mw_dict_tools):
     word = first_item.find("title").text.strip().lower()
     # word = "churlish" # DEBUG
     print(f"[{ts()}] WOTD from RSS: {word}")
+    
+    # Extract definition from RSS feed using the MW_Tools method
+    description = first_item.find("description")
+    rss_definition = None
+    if description is not None and description.text:
+        rss_definition = mw_tools.extract_rss_definition(word, description.text)
 
     # Step 2: Get the sense index from dictionary (to use correct thesaurus sense)
-    dict_result = mw_dict_tools.get_mw_dictionary_data(word)
+    dict_result = mw_tools.get_mw_dictionary_data(word)
     if dict_result and len(dict_result) >= 7:
         sense_idx = dict_result[6]  # 7th element is the sense index
     else:
         sense_idx = 0  # Default to first sense if dictionary lookup fails
     
     # Step 3: Look up synonyms via the Collegiate Thesaurus API using the correct sense
-    synonyms = mw_dict_tools.get_mw_thesaurus_data(word, sense_idx)
-    return word, synonyms
+    synonyms = mw_tools.get_mw_thesaurus_data(word, sense_idx)
+    return word, synonyms, rss_definition
 
 def post_to_discord(insight, chart_buf):
     """Post the insight text and chart image to Discord via webhook."""
     payload = {"content": insight, "username": "Wordy"}
+    debug(f"Discord payload (insight length): {len(insight)}")
+    debug(f"Discord payload (insight repr, first 200 chars): {repr(insight[:200])}")
     if chart_buf is not None:
         files = {"file": ("chart.png", chart_buf, "image/png")}
         response = requests.post(DISCORD_WEBHOOK_URL, data=payload, files=files)
     else:
         response = requests.post(DISCORD_WEBHOOK_URL, json=payload)
+    debug(f"Discord response status: {response.status_code}")
+    if response.status_code != 204 and response.status_code != 200:
+        debug(f"Discord response text: {response.text}")
     response.raise_for_status()
 
 
 def main():
     word_tools = Word_Tools(DEBUG, MW_DI_API_KEY, MW_TH_API_KEY)
-    mw_dict_tools = MW_Dict_Tools(DEBUG, MW_DI_API_KEY, MW_TH_API_KEY)
+    mw_tools = MW_Tools(DEBUG, MW_DI_API_KEY, MW_TH_API_KEY)
     wik_dict_tools = Wik_Dict_Tools(DEBUG, MW_DI_API_KEY, MW_TH_API_KEY)
     print(f"[{ts()}] Fetching Word of the Day and posting to Discord")
     no_post_mode = False  # DEBUG: set to True to run without posting to Discord
     if not no_post_mode: post_to_discord('https://www.merriam-webster.com/word-of-the-day', None)
-    word, synonyms = get_wotd(mw_dict_tools)
+    word, synonyms, rss_definition = get_wotd(mw_tools)
     # print(f"[{ts()}] Word: {word}, Synonyms: {synonyms}") # DEBUG
     chart_buf = None 
     if not synonyms:
@@ -96,16 +107,20 @@ def main():
             chart_buf = word_tools.generate_chart(word)
 
     ipa, regions = wik_dict_tools.get_wiktionary_data(word)
-    pos, definition, example_sentence, etymology, audio_urls, prn, sense_idx, formality = mw_dict_tools.get_mw_dictionary_data(word)
+    pos, definition, example_sentence, etymology, audio_urls, prn, sense_idx, formality = mw_tools.get_mw_dictionary_data(word)
 
     # Build insight in desired order: word+definition, pronunciation, example sentence, commonality, regional note
     insight_parts = []
     
-    # Always add word + part of speech + definition
-    if definition:
-        insight_parts.append(f"**{word.capitalize()}** — *{pos}* — {definition}")
+    # Always add word + part of speech + definition (use RSS definition which matches Discord embed)
+    if rss_definition:
+        insight_parts.append(f"**{word.capitalize()}** — *{pos}* — {rss_definition}")
     else:
-        insight_parts.append(f"**{word.capitalize()}** — *{pos}*")
+        # Fallback to API definition if RSS definition not available
+        if definition:
+            insight_parts.append(f"**{word.capitalize()}** — *{pos}* — {definition}")
+        else:
+            insight_parts.append(f"**{word.capitalize()}** — *{pos}*")
 
     prn_disp = []
     if prn:
