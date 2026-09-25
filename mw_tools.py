@@ -376,33 +376,13 @@ class MW_Tools(Tools):
         self.debug(f"pronunciation = {prn}")
         self.debug(f"Best sense index for '{word}': {best_sense_idx}")
         self.debug(f"Formality: {formality}")
+        
+        # Extract shortdef from API response
+        api_shortdef = None
+        if first_entry and 'shortdef' in first_entry:
+            shortdef_list = first_entry['shortdef']
+            if isinstance(shortdef_list, list) and len(shortdef_list) > 0:
+                api_shortdef = shortdef_list[0]  # Get first shortdef
+                self.debug(f"Extracted shortdef from API: {api_shortdef[:100]}")
 
-        return pos, definition, example_sentence, etymology, audio_urls if audio_urls else None, prn if prn else None, best_sense_idx, formality
-
-    def extract_rss_definition(self, word, rss_text):
-        """Extract the definition for a word from the MW WOTD RSS feed.
-        
-        Uses the <merriam:shortdef> tag which contains a CDATA section with the definition.
-        
-        Args:
-            word: The word to find the definition for (unused, kept for API compatibility)
-            rss_text: The raw RSS description text
-        
-        Returns:
-            The clean definition text, or None if not found
-        """
-        if not rss_text:
-            return None
-        
-        self.debug(f"RSS description (length): {len(rss_text)}")
-        
-        # Look for <merriam:shortdef> tag with CDATA content
-        shortdef_match = re.search(r'<merriam:shortdef>\s*<!\[CDATA\[\s*(.*?)\s*\]\]>\s*<\/merriam:shortdef>', rss_text, re.DOTALL)
-        
-        if shortdef_match:
-            rss_definition = shortdef_match.group(1).strip()
-            self.debug(f"Extracted definition from RSS shortdef: {rss_definition[:100]}")
-            return rss_definition
-        
-        self.debug(f"Could not extract definition from RSS shortdef")
-        return None
+        return pos, definition, example_sentence, etymology, audio_urls if audio_urls else None, prn if prn else None, best_sense_idx, formality, api_shortdef
