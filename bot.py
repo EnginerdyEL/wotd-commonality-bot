@@ -36,7 +36,7 @@ def get_wotd(mw_tools):
     root = ET.fromstring(response.content)
     first_item = root.find(".//item")
     word = first_item.find("title").text.strip().lower()
-    word = "churlish" # DEBUG
+    # word = "churlish" # DEBUG
     print(f"[{ts()}] WOTD from RSS: {word}")
     
     # Extract definition from RSS feed's merriam:shortdef element
