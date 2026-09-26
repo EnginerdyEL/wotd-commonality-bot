@@ -6,8 +6,8 @@ A Discord automation that posts daily insights about the Merriam-Webster Word of
 
 Every day, Wordy automatically:
 1. Posts a link to the Merriam-Webster Word of the Day
-2. Extracts the word and its definition from the MW RSS feed (matching the Discord embed exactly)
-3. Posts the word, part of speech, and definition from the RSS feed
+2. Extracts the word and its short definition from the MW RSS feed's `<merriam:shortdef>` element
+3. Posts the word, part of speech, and short definition from the RSS feed
 4. Fetches the word's synonyms from the MW Collegiate Thesaurus API
 5. Looks up and shares pronunciation in IPA format via Wiktionary API
 6. Looks up and shares pronunciation in audio format via MW Collegiate Dictionary API
@@ -55,7 +55,7 @@ Pronunciation via IPA is pulled from Wiktionary, and pronunciation audio sample 
 
 ## Word Definition
 
-The word, part of speech, and primary definition are extracted from the Merriam-Webster RSS feed to match the exact definition shown in the Discord embed. This ensures consistency between the daily WOTD post on Discord and Wordy's output, and avoids cases where the API's primary definition is too short or differs from what MW features on their website. The part of speech is drawn from the MW Dictionary API.
+Wordy extracts the word's short definition directly from the Merriam-Webster WOTD RSS feed's `<merriam:shortdef>` element. This ensures consistency between the WOTD Discord embed and Wordy's output. The shortdef is curated by Merriam-Webster to match exactly what appears on their Word of the Day page, avoiding cases where API definitions pick the wrong sense or show unhelpful synonym definitions (e.g., "pandit" instead of the actual definition). If the RSS shortdef is unavailable, the bot falls back to the primary API definition. The part of speech is drawn from the MW Dictionary API.
 
 ## Example Sentence
 
@@ -101,7 +101,7 @@ Possible indicators: Slang, Informal, Vulgar, and others. Standard/formal words 
 
 ## Frequency Chart and Synonyms
 
-**Logarithmic Scale Chart:** The frequency-over-time chart displays on a logarithmic scale with a baseline of reference words spanning common (e.g., "the", "house") to very rare (e.g., "incandescence"). This allows readers to see the word's absolute rarity position. The word-of-the-day is always plotted alongside these reference words, providing meaningful context for its frequency tier.
+**Logarithmic Scale Chart:** The frequency-over-time chart displays on a logarithmic scale with a baseline of reference words spanning common (e.g., "the", "house") to very rare (e.g., "incandescence"). This allows readers to see the word's absolute rarity position without distortion from outlier synonyms. The word-of-the-day is always plotted alongside these reference words, providing meaningful context for its frequency tier.
 
 **Synonym Selection:** From all available synonyms, Wordy selects the closest 2 by frequency distance plus the 3 most common, up to 5 total. This balances showing semantically relevant words (closest in frequency) with common alternatives readers may already know (most frequent). Synonyms are listed as a simple comma-separated line ("Synonyms: a, b, c, d, e") to save space and let readers quickly identify alternatives at similar rarity levels.
 
@@ -115,6 +115,17 @@ Possible indicators: Slang, Informal, Vulgar, and others. Standard/formal words 
 - **Google Ngrams JSON endpoint** — frequency data
 - **matplotlib** — chart generation
 - **GitHub Actions** — daily scheduling (cron job)
+
+## File Structure
+
+Wordy is organized with separation of concerns across specialized tool classes:
+
+- **bot.py** — Main entry point that orchestrates the Word of the Day workflow
+- **mw_tools.py** — `MW_Tools` class handles Merriam-Webster Dictionary API (definitions, etymology, sense analysis), Thesaurus API (synonym lookup), and RSS feed shortdef extraction
+- **word_tools.py** — `Word_Tools` class handles Google Ngrams frequency data, rarity labeling, and frequency charts
+- **wik_dict_tools.py** — `Wik_Dict_Tools` class handles Wiktionary API for pronunciation (IPA) and regional indicators
+- **tools.py** — Base `Tools` class with shared utilities (debugging, timestamps)
+- **test_bot.py** — Unit tests for core dictionary and thesaurus extraction
 
 ## Setup
 
@@ -195,7 +206,7 @@ To quickly check specific words without overwriting `results.csv`, set `SPOT_CHE
 ## Known Limitations
 
 - Etymology and example sentence markup parsing relies on regex chains, which can be fragile with complex MW API markup. A regression test suite tracks this, but manual review is sometimes needed for edge cases.
-- Synonym selection prioritizes semantic relevance by skipping archaic/obsolete senses. However, when multiple current senses exist, the thesaurus API doesn't indicate which is most relevant, so the selected synonyms may not be most relevant or of the same sense.
+- Synonym selection prioritizes semantic relevance by skipping archaic/obsolete senses. However, when multiple current senses exist, the thesaurus API doesn't indicate which is most relevant, so frequency-based ranking is used as a tie-breaker.
 
 ## Future ideas
 

@@ -36,21 +36,22 @@ def get_wotd(mw_tools):
     root = ET.fromstring(response.content)
     first_item = root.find(".//item")
     word = first_item.find("title").text.strip().lower()
-    # word = "churlish" # DEBUG
+    word = "churlish" # DEBUG
     print(f"[{ts()}] WOTD from RSS: {word}")
     
-    # Step 2: Get the sense index and shortdef from dictionary API
+    # Extract definition from RSS feed's merriam:shortdef element
+    rss_definition = mw_tools.extract_rss_definition(first_item)
+
+    # Step 2: Get the sense index from dictionary (to use correct thesaurus sense)
     dict_result = mw_tools.get_mw_dictionary_data(word)
-    if dict_result and len(dict_result) >= 9:
+    if dict_result and len(dict_result) >= 7:
         sense_idx = dict_result[6]  # 7th element is the sense index
-        api_shortdef = dict_result[8]  # 9th element is the shortdef from API
     else:
-        sense_idx = 0
-        api_shortdef = None
+        sense_idx = 0  # Default to first sense if dictionary lookup fails
     
     # Step 3: Look up synonyms via the Collegiate Thesaurus API using the correct sense
     synonyms = mw_tools.get_mw_thesaurus_data(word, sense_idx)
-    return word, synonyms, api_shortdef
+    return word, synonyms, rss_definition
 
 def post_to_discord(insight, chart_buf):
     """Post the insight text and chart image to Discord via webhook."""
@@ -75,7 +76,7 @@ def main():
     print(f"[{ts()}] Fetching Word of the Day and posting to Discord")
     no_post_mode = False  # DEBUG: set to True to run without posting to Discord
     if not no_post_mode: post_to_discord('https://www.merriam-webster.com/word-of-the-day', None)
-    word, synonyms, api_shortdef = get_wotd(mw_tools)
+    word, synonyms, rss_definition = get_wotd(mw_tools)
     # print(f"[{ts()}] Word: {word}, Synonyms: {synonyms}") # DEBUG
     chart_buf = None 
     if not synonyms:
@@ -103,14 +104,14 @@ def main():
             chart_buf = word_tools.generate_chart(word)
 
     ipa, regions = wik_dict_tools.get_wiktionary_data(word)
-    pos, definition, example_sentence, etymology, audio_urls, prn, sense_idx, formality, _ = mw_tools.get_mw_dictionary_data(word)
+    pos, definition, example_sentence, etymology, audio_urls, prn, sense_idx, formality = mw_tools.get_mw_dictionary_data(word)
 
     # Build insight in desired order: word+definition, pronunciation, example sentence, commonality, regional note
     insight_parts = []
     
     # Always add word + part of speech + definition (use RSS definition which matches Discord embed)
-    if api_shortdef:
-        insight_parts.append(f"**{word.capitalize()}** — *{pos}* — {api_shortdef}")
+    if rss_definition:
+        insight_parts.append(f"**{word.capitalize()}** — *{pos}* — {rss_definition}")
     else:
         # Fallback to API definition if RSS definition not available
         if definition:

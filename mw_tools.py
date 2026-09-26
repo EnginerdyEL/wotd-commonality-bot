@@ -376,13 +376,33 @@ class MW_Tools(Tools):
         self.debug(f"pronunciation = {prn}")
         self.debug(f"Best sense index for '{word}': {best_sense_idx}")
         self.debug(f"Formality: {formality}")
-        
-        # Extract shortdef from API response
-        api_shortdef = None
-        if first_entry and 'shortdef' in first_entry:
-            shortdef_list = first_entry['shortdef']
-            if isinstance(shortdef_list, list) and len(shortdef_list) > 0:
-                api_shortdef = shortdef_list[0]  # Get first shortdef
-                self.debug(f"Extracted shortdef from API: {api_shortdef[:100]}")
 
-        return pos, definition, example_sentence, etymology, audio_urls if audio_urls else None, prn if prn else None, best_sense_idx, formality, api_shortdef
+        return pos, definition, example_sentence, etymology, audio_urls if audio_urls else None, prn if prn else None, best_sense_idx, formality
+
+    def extract_rss_definition(self, item_element):
+        """Extract the definition from the MW WOTD RSS feed's <merriam:shortdef> element.
+        
+        Args:
+            item_element: The RSS <item> element (ElementTree Element)
+        
+        Returns:
+            The clean definition text from shortdef, or None if not found
+        """
+        if item_element is None:
+            return None
+        
+        # Convert element to XML string
+        # ElementTree unwraps CDATA on parse and uses namespace prefixes like ns0:, ns1:, etc.
+        item_xml = ET.tostring(item_element, encoding='unicode')
+        
+        # Match shortdef tag (with any namespace prefix) and extract content
+        # Pattern matches: <...shortdef...>content</...shortdef...>
+        match = re.search(r'<.*?shortdef.*?>\s*(.*?)\s*</.*?shortdef.*?>', item_xml, re.DOTALL | re.IGNORECASE)
+        
+        if match:
+            rss_definition = match.group(1).strip()
+            self.debug(f"Extracted shortdef from RSS: {rss_definition[:100]}")
+            return rss_definition
+        
+        self.debug(f"Could not find shortdef in RSS item")
+        return None
