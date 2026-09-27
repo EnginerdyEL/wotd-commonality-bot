@@ -81,7 +81,10 @@ class Word_Tools(Tools):
         for entry in ngram_data:
             if entry["ngram"].lower() in [w.lower() for w in words]:
                 years = list(range(self.NGRAMS_START_YEAR, self.NGRAMS_END_YEAR + 1))
-                ax.plot(years, entry["timeseries"], label=entry["ngram"])
+                # Bold the WOTD line to make it stand out
+                linewidth = 3 if entry["ngram"].lower() == wotd.lower() else 1
+                zorder = 10 if entry["ngram"].lower() == wotd.lower() else 5
+                ax.plot(years, entry["timeseries"], label=entry["ngram"], linewidth=linewidth, zorder=zorder)
 
         ax.set_title("Word Frequency Over Time (Google Ngrams)", fontsize='20')
         ax.set_xlabel("Year", fontsize="x-large")
