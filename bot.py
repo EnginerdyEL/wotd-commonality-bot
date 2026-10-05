@@ -79,6 +79,7 @@ def main():
     word, synonyms, rss_definition = get_wotd(mw_tools)
     # print(f"[{ts()}] Word: {word}, Synonyms: {synonyms}") # DEBUG
     chart_buf = None 
+    selected_synonyms = []
     if not synonyms:
         print(f"[{ts()}] No synonyms found, cannot compare.")
         ngram_data = word_tools.get_ngrams_data([word])
