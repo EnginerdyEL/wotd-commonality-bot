@@ -75,7 +75,7 @@ class Word_Tools(Tools):
         plt.style.use('dark_background')
         fig, ax = plt.subplots(figsize=(10, 8))
         # Baseline words for comparison
-        words = ["the", "house", "apple", "cushion", "thimble", "incandescence", wotd]
+        words = ["the", "house", "apple", "cushion", "gregarious", "perspicacious", wotd]
         ngram_data = self.get_ngrams_data(words)
     
         for entry in ngram_data:
