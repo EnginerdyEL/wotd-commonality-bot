@@ -14,7 +14,7 @@ class Word_Tools(Tools):
 
     def get_frequency_tier_emoji(self, frequency):
         """Return a frequency tier emoji based on rarity label."""
-        if frequency >= 1e-4:
+        if   frequency >= 1e-4:
             return "🟢"  # very common
         elif frequency >= 1e-5:
             return "🟢"  # common
@@ -45,10 +45,10 @@ class Word_Tools(Tools):
 
 
     def get_recent_frequency(self, ngram_data, word):
-        """Get the average frequency of a word over the last 10 years of data."""
+        """Get the average frequency of a word over the last 30 years of data."""
         for entry in ngram_data:
             if entry["ngram"].lower() == word.lower():
-                recent = entry["timeseries"][-10:]
+                recent = entry["timeseries"][-30:]
                 return sum(recent) / len(recent) if recent else 0
         return 0
 
@@ -100,6 +100,7 @@ class Word_Tools(Tools):
         buf.seek(0)
         plt.close()
         return buf
+
 
     def build_insight(self, word, synonyms, ngram_data):
         """Build the insight text comparing the WOTD to its best synonym.
