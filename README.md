@@ -13,7 +13,7 @@ Every day, Wordy automatically:
 6. Looks up and shares pronunciation in audio format via MW Collegiate Dictionary API
 7. Extracts and shares an example sentence from MW Dictionary API
 8. Looks up frequency data for the word via Google Ngrams
-9. Posts a frequency-over-time chart on a logarithmic scale with the word plotted against reference baseline words (common, moderate, rare, very rare)
+9. Posts a frequency-over-time chart on a logarithmic scale with the word plotted against reference baseline words (common, uncommon, rare)
 10. Displays up to 5 relevant synonyms (closest in frequency + most common)
 11. Posts the etymology from the MW Collegiate Dictionary API
 12. Posts formality indicator (slang, informal, etc.) when the word has non-standard register from MW Dictionary API
@@ -217,6 +217,8 @@ To quickly check specific words without overwriting `results.csv`, set `SPOT_CHE
 - Add a "rhymes with" section, pulled from Datamuse API with frequency-based filtering
 - Add a "phrases" section, pulled from MW API if available
 - Investigate colloquial vs. literary tags in Wiktionary to enrich formality indicators beyond MW's current coverage
+- Use a standard webhook library function instead of the custom version in the `post_to_discord` function within `bot.py`, such as https://docs.nextcord.dev/en/stable/api.html#nextcord.Webhook
+- Use python's logging library to replace the debug and timestamp functions in `tools.py`
 
 ### Longer term
 
