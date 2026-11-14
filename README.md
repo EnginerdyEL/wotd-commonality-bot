@@ -212,6 +212,10 @@ To quickly check specific words without overwriting `results.csv`, set `SPOT_CHE
 
 ### Near term
 
+- Pull the part of speech from the RSS instead of the MW Dict API
+- Move the pronunciation line to the end of the message, below the chart, so that it shows up directly before the embedded audio
+- Ensure words like "wabi-sabi" display the frequency over time when no thesaurus entry is found and not just the baseline words
+- Add "galore" to the etymology unit test cases to see if it can be improved without regressing the others
 - Clean up tech debt of old ways to pull the definition and extract relevant synonyms
 - Add "Recent Examples on the Web" — extract from MW dictionary page if available in API, or fetch multiple example sentences and select the most illustrative
 - Add a "rhymes with" section, pulled from Datamuse API with frequency-based filtering
