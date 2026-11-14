@@ -53,11 +53,15 @@ def get_wotd(mw_tools):
     synonyms = mw_tools.get_mw_thesaurus_data(word, sense_idx)
     return word, synonyms, rss_definition
 
-def post_to_discord(insight, chart_buf):
-    """Post the insight text and chart image to Discord via webhook."""
+def post_to_discord(insight, chart_buf=None):
+    """Post a message to Discord via webhook.
+
+    If chart_buf is provided, posts text + chart in one message.
+    Otherwise posts text only.
+    """
     payload = {"content": insight, "username": "Wordy"}
-    debug(f"Discord payload (insight length): {len(insight)}")
-    debug(f"Discord payload (insight repr, first 200 chars): {repr(insight[:200])}")
+    debug(f"Discord payload (content length): {len(insight)}")
+    debug(f"Discord payload (content repr, first 200 chars): {repr(insight[:200])}")
     if chart_buf is not None:
         files = {"file": ("chart.png", chart_buf, "image/png")}
         response = requests.post(DISCORD_WEBHOOK_URL, data=payload, files=files)
@@ -107,61 +111,72 @@ def main():
     ipa, regions = wik_dict_tools.get_wiktionary_data(word)
     pos, definition, example_sentence, etymology, audio_urls, prn, sense_idx, formality = mw_tools.get_mw_dictionary_data(word)
 
-    # Build insight in desired order: word+definition, pronunciation, example sentence, commonality, regional note
-    insight_parts = []
-    
+    # Build first insight: word + definition + example + regional/formality + etymology + pronunciation
+    first_insight_parts = []
+
     # Always add word + part of speech + definition (use RSS definition which matches Discord embed)
     if rss_definition:
-        insight_parts.append(f"**{word.capitalize()}** — *{pos}* — {rss_definition}")
+        first_insight_parts.append(f"**{word.capitalize()}** — *{pos}* — {rss_definition}")
     else:
         # Fallback to API definition if RSS definition not available
         if definition:
-            insight_parts.append(f"**{word.capitalize()}** — *{pos}* — {definition}")
+            first_insight_parts.append(f"**{word.capitalize()}** — *{pos}* — {definition}")
         else:
-            insight_parts.append(f"**{word.capitalize()}** — *{pos}*")
+            first_insight_parts.append(f"**{word.capitalize()}** — *{pos}*")
 
-    prn_disp = []
+    # Add example sentence if available
+    if example_sentence:
+        first_insight_parts.append(f"💬 Example: \"{example_sentence}\"")
+
+    if regions:
+        first_insight_parts.append(f"🌏 Regional note: primarily used in {', '.join(regions)}")
+
+    if formality:
+        first_insight_parts.append(f"🤵 Formality: {formality}")
+
+    if etymology:
+        print(f"[{ts()}] Etymology: {etymology}")
+        first_insight_parts.append(etymology)
+    else:
+        print(f"[{ts()}] No etymology data found for {word}.")
+
+    # Add pronunciation + audio link at end of first insight
     if prn:
         prn_disp = ", ".join(prn) if len(prn) > 1 else prn[0]
+    else:
+        prn_disp = ''
     ipa_mw_disp = f" /{prn_disp}/ " if prn_disp else ''
     ipa_wi_disp = f" {ipa} " if ipa else ''
 
     if audio_urls:
         if len(audio_urls) == 1:
-            insight_parts.append(f"🔊 Pronunciation:{ipa_wi_disp}{ipa_mw_disp}  🎵  [Audio Example]({audio_urls[0]})")
+            first_insight_parts.append(f"🔊 Pronunciation:{ipa_wi_disp}{ipa_mw_disp}  🎵  [Audio Example]({audio_urls[0]})")
         else:
             audio_links = "  ".join([f"🎵  [Audio Example {i+1}]({url})" for i, url in enumerate(audio_urls)])
-            insight_parts.append(f"🔊 Pronunciation:{ipa_wi_disp}{ipa_mw_disp}  {audio_links}")
+            first_insight_parts.append(f"🔊 Pronunciation:{ipa_wi_disp}{ipa_mw_disp}  {audio_links}")
     elif ipa:
-        insight_parts.append(f"🔊 Pronunciation:{ipa_wi_disp}{ipa_mw_disp}")
+        first_insight_parts.append(f"🔊 Pronunciation:{ipa_wi_disp}{ipa_mw_disp}")
 
-    # Add example sentence if available
-    if example_sentence:
-        insight_parts.append(f"💬 Example: \"{example_sentence}\"")
+    first_insight = "\n".join(first_insight_parts)
+    print(f"[{ts()}] First Insight: {first_insight}")
 
-    if regions:
-        insight_parts.append(f"🌏 Regional note: primarily used in {', '.join(regions)}")
-    
-    if formality:
-        insight_parts.append(f"🤵 Formality: {formality}")
-    
-    if etymology:
-        print(f"[{ts()}] Etymology: {etymology}")
-        insight_parts.append(etymology)
-    else:
-        print(f"[{ts()}] No etymology data found for {word}.")
+    # Build second insight: commonality + synonyms (with chart attached)
+    second_insight_parts = []
+    second_insight_parts.append(commonality)
 
-    insight_parts.append(commonality)
-    
-    # Add selected synonyms line
     if selected_synonyms:
         synonyms_display = ", ".join(selected_synonyms)
-        insight_parts.append(f"Synonyms: {synonyms_display}")
-    
-    insight = "\n".join(insight_parts)
-    print(f"[{ts()}] Insight: {insight}")
+        second_insight_parts.append(f"Synonyms: {synonyms_display}")
 
-    if not no_post_mode: post_to_discord(insight, chart_buf)
+    second_insight = "\n".join(second_insight_parts)
+    print(f"[{ts()}] Second Insight: {second_insight}")
+
+    if not no_post_mode:
+        # Post first insight (word, definition, example, etymology, pronunciation)
+        post_to_discord(first_insight, None)
+
+        # Post second insight (commonality, synonyms) with chart attached
+        post_to_discord(second_insight, chart_buf)
 
     print(f"[{ts()}] Posted to Discord successfully.")
 
