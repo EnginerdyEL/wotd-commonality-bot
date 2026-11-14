@@ -38,9 +38,10 @@ def get_wotd(mw_tools):
     word = first_item.find("title").text.strip().lower()
     # word = "inscrutable" # DEBUG
     print(f"[{ts()}] WOTD from RSS: {word}")
-    
-    # Extract definition from RSS feed's merriam:shortdef element
+
+    # Extract definition and POS from RSS feed
     rss_definition = mw_tools.extract_rss_definition(first_item)
+    rss_pos = mw_tools.extract_rss_pos(first_item)
 
     # Step 2: Get the sense index from dictionary (to use correct thesaurus sense)
     dict_result = mw_tools.get_mw_dictionary_data(word)
@@ -48,10 +49,10 @@ def get_wotd(mw_tools):
         sense_idx = dict_result[6]  # 7th element is the sense index
     else:
         sense_idx = 0  # Default to first sense if dictionary lookup fails
-    
+
     # Step 3: Look up synonyms via the Collegiate Thesaurus API using the correct sense
     synonyms = mw_tools.get_mw_thesaurus_data(word, sense_idx)
-    return word, synonyms, rss_definition
+    return word, synonyms, rss_definition, rss_pos
 
 def post_to_discord(insight, chart_buf=None):
     """Post a message to Discord via webhook.
@@ -80,7 +81,7 @@ def main():
     print(f"[{ts()}] Fetching Word of the Day and posting to Discord")
     no_post_mode = False  # DEBUG: set to True to run without posting to Discord
     if not no_post_mode: post_to_discord('https://www.merriam-webster.com/word-of-the-day', None)
-    word, synonyms, rss_definition = get_wotd(mw_tools)
+    word, synonyms, rss_definition, rss_pos = get_wotd(mw_tools)
     # print(f"[{ts()}] Word: {word}, Synonyms: {synonyms}") # DEBUG
     chart_buf = None 
     selected_synonyms = []
@@ -110,6 +111,11 @@ def main():
 
     ipa, regions = wik_dict_tools.get_wiktionary_data(word)
     pos, definition, example_sentence, etymology, audio_urls, prn, sense_idx, formality = mw_tools.get_mw_dictionary_data(word)
+
+    # Use RSS POS if available (matches the WOTD sense), otherwise fall back to API POS
+    if rss_pos:
+        pos = rss_pos
+        print(f"[{ts()}] Using POS from RSS: {pos}")
 
     # Build first insight: word + definition + example + regional/formality + etymology + pronunciation
     first_insight_parts = []

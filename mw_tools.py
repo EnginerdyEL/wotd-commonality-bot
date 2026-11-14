@@ -406,3 +406,38 @@ class MW_Tools(Tools):
         
         self.debug(f"Could not find shortdef in RSS item")
         return None
+
+    def extract_rss_pos(self, item_element):
+        """Extract the part of speech from the MW WOTD RSS feed.
+        
+        The RSS description contains:
+        <strong>word</strong> &#149; \pronunciation\ &#149; <em>pos</em>
+        
+        Args:
+            item_element: The RSS <item> element (ElementTree Element)
+        
+        Returns:
+            The part of speech (e.g., 'verb', 'noun'), or None if not found
+        """
+        if item_element is None:
+            return None
+        
+        # Extract the description text from the item
+        description = item_element.find("description")
+        if description is None or description.text is None:
+            self.debug(f"No description found in RSS item")
+            return None
+        
+        rss_text = description.text
+        
+        # Search for the POS pattern: <em>word</em> after <strong>word</strong>
+        # Pattern: <strong>.*?</strong> ... <em>pos</em>
+        match = re.search(r'<strong>[^<]+</strong>\s*.*?<em>([^<]+)</em>', rss_text, re.IGNORECASE)
+        
+        if match:
+            rss_pos = match.group(1).strip().lower()
+            self.debug(f"Extracted POS from RSS: {rss_pos}")
+            return rss_pos
+        
+        self.debug(f"Could not find POS in RSS description")
+        return None

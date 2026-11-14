@@ -212,7 +212,6 @@ To quickly check specific words without overwriting `results.csv`, set `SPOT_CHE
 
 ### Near term
 
-- Pull the part of speech from the RSS instead of the MW Dict API
 - Ensure words like "wabi-sabi" display the frequency over time when no thesaurus entry is found and not just the baseline words
 - Add "galore" to the etymology unit test cases to see if it can be improved without regressing the others
 - Clean up tech debt of old ways to pull the definition and extract relevant synonyms
