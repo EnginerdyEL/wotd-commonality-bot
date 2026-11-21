@@ -6,7 +6,6 @@ from datetime import datetime
 from tools import Tools
 from urllib.parse import quote
 
-
 # This class handles other functions related to the word of the day
 class Word_Tools(Tools):
 
@@ -16,7 +15,7 @@ class Word_Tools(Tools):
 
     def get_frequency_tier_emoji(self, frequency):
         """Return a frequency tier emoji based on rarity label."""
-        if   frequency >= 1e-4:
+        if frequency >= 1e-4:
             return "🟢"  # very common
         elif frequency >= 1e-5:
             return "🟢"  # common
@@ -48,11 +47,6 @@ class Word_Tools(Tools):
         return response.json()
 
 
-    def _normalize_ngram_word(self, word):
-        """Normalize a word for Ngrams lookup by converting hyphens to ' - ' format."""
-        return word.replace('-', ' - ')
-
-    
     def get_recent_frequency(self, ngram_data, word):
         """Get the average frequency of a word over the last 10 years of data."""
         word_normalized = self._normalize_ngram_word(word).lower()
@@ -79,6 +73,13 @@ class Word_Tools(Tools):
         else:
             return "very rare"
 
+    def _normalize_ngram_word(self, word):
+        """Normalize a word for Ngrams lookup by converting hyphens to ' - ' format.
+        
+        Google Ngrams converts hyphenated words to space-hyphen-space format.
+        E.g., 'meet-cute' becomes 'meet - cute' in Ngrams data.
+        """
+        return word.replace('-', ' - ')
 
     def generate_chart(self, wotd):
         """Generate a frequency chart image and return it as bytes."""
@@ -120,17 +121,16 @@ class Word_Tools(Tools):
         plt.close()
         return buf
 
-
     def build_insight(self, word, synonyms, ngram_data):
-        """Build the insight text comparing the WOTD to its best synonym.
-        Selects closest 2 + most common 3 synonyms for display (5 total max).
+        """Build the insight text comparing the WOTD to its common synonyms.
+        Filters out synonyms >5x or <0.2x the WOTD frequency for display.
         Always uses best overall synonym for comparison in insight text."""
         if not ngram_data:
-            return [], "Not enough data to calculate commonality."
+            return [], [], "Not enough data to calculate commonality."
 
         wotd_freq = self.get_recent_frequency(ngram_data, word)
         if wotd_freq == 0:
-            return [], "Not enough data to calculate commonality."
+            return [], [], "Not enough data to calculate commonality."
         
         # Calculate frequencies for all synonyms
         syn_freqs = {s: self.get_recent_frequency(ngram_data, s) for s in synonyms}
@@ -139,29 +139,28 @@ class Word_Tools(Tools):
         best_syn = max(synonyms, key=lambda s: syn_freqs[s])
         best_syn_freq = syn_freqs[best_syn]
         
-        # Find closest 2 synonyms by frequency distance from WOTD
-        closest_2 = sorted(
-            syn_freqs.items(),
-            key=lambda x: abs(x[1] - wotd_freq)
-        )[:2]
-        closest_2_names = [s for s, _ in closest_2]
+        # Filter synonyms by 0.2x-5x threshold
+        filtered_synonyms = []
+        out_of_range_synonyms = []
         
-        # Start with closest 2
-        selected_synonyms = closest_2_names.copy()
+        for syn, syn_freq in syn_freqs.items():
+            if syn_freq == 0:
+                out_of_range_synonyms.append(syn)
+                continue
+            
+            ratio = syn_freq / wotd_freq
+            if 0.2 <= ratio <= 5:
+                filtered_synonyms.append(syn)
+            else:
+                out_of_range_synonyms.append(syn)
         
-        # Fill remaining slots (up to 5 total) with most common that aren't already selected
-        most_common_sorted = sorted(
-            syn_freqs.items(),
-            key=lambda x: x[1],
-            reverse=True
-        )
+        # Use top 3 of filtered synonyms for display
+        display_synonyms = sorted(filtered_synonyms, key=lambda s: syn_freqs[s], reverse=True)[:3]
+        print(f"[{self.ts()}] Display Synonyms: {display_synonyms}")
         
-        for syn, _ in most_common_sorted:
-            if len(selected_synonyms) >= 5:
-                break
-            if syn not in selected_synonyms:
-                selected_synonyms.append(syn)
-        print(f"[{self.ts()}] Selected Synonyms: {selected_synonyms}")
+        # Cap the out-of-range list at 3 items for the "not plotted" note
+        filtered_out_synonyms = sorted(out_of_range_synonyms, key=lambda s: syn_freqs[s], reverse=True)[:3]
+        print(f"[{self.ts()}] Synonyms: {filtered_out_synonyms}")
         
         # Build the commonality comparison using the best synonym overall
         rarity = self.get_rarity_label(wotd_freq)
@@ -180,4 +179,4 @@ class Word_Tools(Tools):
             else:
                 commonality = f'{emoji} *{word}* is {rarity} and {ratio:.1f}x less common than *{best_syn}* in literature.'
         
-        return selected_synonyms, commonality
+        return display_synonyms, filtered_out_synonyms, commonality

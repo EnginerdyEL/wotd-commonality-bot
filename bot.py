@@ -27,7 +27,7 @@ def debug(message):
         print(f"[{ts()}] DEBUG: {message}")
 
 def get_wotd(mw_tools):
-    """Fetch the Word of the Day from MW RSS feed, then look up synonyms via the API."""
+    """Fetch the Word of the Day from MW RSS feed with all data needed for posting."""
     # Step 1: Get the word from the RSS feed
     rss_url = "https://www.merriam-webster.com/wotd/feed/rss2"
     response = requests.get(rss_url)
@@ -44,16 +44,17 @@ def get_wotd(mw_tools):
     rss_definition = mw_tools.extract_rss_definition(first_item)
     rss_pos = mw_tools.extract_rss_pos(first_item)
 
-    # Step 2: Get the sense index from dictionary (to use correct thesaurus sense)
-    dict_result = mw_tools.get_mw_dictionary_data(word)
-    if dict_result and len(dict_result) >= 7:
-        sense_idx = dict_result[6]  # 7th element is the sense index
+    # Step 2: Get dictionary data (definition, pronunciation, etymology, etc.) — only called once
+    dict_data = mw_tools.get_mw_dictionary_data(word)
+    if dict_data and len(dict_data) >= 8:
+        pos, definition, example_sentence, etymology, audio_urls, prn, sense_idx, formality = dict_data
     else:
-        sense_idx = 0  # Default to first sense if dictionary lookup fails
+        pos, definition, example_sentence, etymology, audio_urls, prn, sense_idx, formality = None, None, None, None, None, None, 0, None
 
     # Step 3: Look up synonyms via the Collegiate Thesaurus API using the correct sense
     synonyms = mw_tools.get_mw_thesaurus_data(word, sense_idx)
-    return word, synonyms, rss_definition, rss_pos
+    
+    return word, synonyms, rss_definition, rss_pos, pos, definition, example_sentence, etymology, audio_urls, prn, sense_idx, formality
 
 def post_to_discord(insight, chart_buf=None):
     """Post a message to Discord via webhook.
@@ -82,7 +83,10 @@ def main():
     print(f"[{ts()}] Fetching Word of the Day and posting to Discord")
     no_post_mode = False  # DEBUG: set to True to run without posting to Discord
     if not no_post_mode: post_to_discord('https://www.merriam-webster.com/word-of-the-day', None)
-    word, synonyms, rss_definition, rss_pos = get_wotd(mw_tools)
+    
+    # Fetch all data in one call (no duplicate API calls)
+    word, synonyms, rss_definition, rss_pos, pos, definition, example_sentence, etymology, audio_urls, prn, sense_idx, formality = get_wotd(mw_tools)
+    
     # print(f"[{ts()}] Word: {word}, Synonyms: {synonyms}") # DEBUG
     chart_buf = None 
     selected_synonyms = []
@@ -111,7 +115,6 @@ def main():
             chart_buf = word_tools.generate_chart(word)
 
     ipa, regions = wik_dict_tools.get_wiktionary_data(word)
-    pos, definition, example_sentence, etymology, audio_urls, prn, sense_idx, formality = mw_tools.get_mw_dictionary_data(word)
 
     # Use RSS POS if available (matches the WOTD sense), otherwise fall back to API POS
     if rss_pos:
