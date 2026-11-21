@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from tools import Tools
+from urllib.parse import quote
+
 
 # This class handles other functions related to the word of the day
 class Word_Tools(Tools):
@@ -30,7 +32,9 @@ class Word_Tools(Tools):
 
     def get_ngrams_data(self, words):
         """Fetch frequency data from Google Ngrams for a list of words."""
-        content = ",".join(words)
+        # URL-encode each word to handle hyphens and special characters
+        encoded_words = [quote(word) for word in words]
+        content = ",".join(encoded_words)
         url = (
             f"https://books.google.com/ngrams/json"
             f"?content={content}"
@@ -44,11 +48,17 @@ class Word_Tools(Tools):
         return response.json()
 
 
+    def _normalize_ngram_word(self, word):
+        """Normalize a word for Ngrams lookup by converting hyphens to ' - ' format."""
+        return word.replace('-', ' - ')
+
+    
     def get_recent_frequency(self, ngram_data, word):
-        """Get the average frequency of a word over the last 30 years of data."""
+        """Get the average frequency of a word over the last 10 years of data."""
+        word_normalized = self._normalize_ngram_word(word).lower()
         for entry in ngram_data:
-            if entry["ngram"].lower() == word.lower():
-                recent = entry["timeseries"][-30:]
+            if entry["ngram"].lower() == word_normalized:
+                recent = entry["timeseries"][-10:]
                 return sum(recent) / len(recent) if recent else 0
         return 0
 
@@ -74,17 +84,26 @@ class Word_Tools(Tools):
         """Generate a frequency chart image and return it as bytes."""
         plt.style.use('dark_background')
         fig, ax = plt.subplots(figsize=(10, 8))
-        # Baseline words for comparison
+        # Baseline words for comparison: common, uncommon, rare baselines
         words = ["the", "house", "apple", "cushion", "gregarious", "perspicacious", wotd]
         ngram_data = self.get_ngrams_data(words)
-    
+        
+        # Normalize the WOTD for comparison (hyphens become " - ")
+        wotd_normalized = self._normalize_ngram_word(wotd)
+
         for entry in ngram_data:
-            if entry["ngram"].lower() in [w.lower() for w in words]:
+            entry_normalized = entry["ngram"].lower()
+            words_normalized = [self._normalize_ngram_word(w).lower() for w in words]
+            
+            if entry_normalized in words_normalized:
                 years = list(range(self.NGRAMS_START_YEAR, self.NGRAMS_END_YEAR + 1))
-                # Bold the WOTD line to make it stand out
-                linewidth = 3 if entry["ngram"].lower() == wotd.lower() else 1
-                zorder = 10 if entry["ngram"].lower() == wotd.lower() else 5
-                ax.plot(years, entry["timeseries"], label=entry["ngram"], linewidth=linewidth, zorder=zorder)
+                # Convert label back to hyphenated format for display
+                display_label = entry["ngram"].replace(' - ', '-')
+                # Bold the WOTD line for emphasis
+                if entry_normalized == wotd_normalized.lower():
+                    ax.plot(years, entry["timeseries"], label=display_label, linewidth=3, zorder=10)
+                else:
+                    ax.plot(years, entry["timeseries"], label=display_label, linewidth=1, zorder=5)
 
         ax.set_title("Word Frequency Over Time (Google Ngrams)", fontsize='20')
         ax.set_xlabel("Year", fontsize="x-large")

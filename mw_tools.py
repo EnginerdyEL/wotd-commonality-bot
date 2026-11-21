@@ -408,7 +408,7 @@ class MW_Tools(Tools):
         return None
 
     def extract_rss_pos(self, item_element):
-        """Extract the part of speech from the MW WOTD RSS feed.
+        r"""Extract the part of speech from the MW WOTD RSS feed.
         
         The RSS description contains:
         <strong>word</strong> &#149; \pronunciation\ &#149; <em>pos</em>

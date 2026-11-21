@@ -212,7 +212,7 @@ To quickly check specific words without overwriting `results.csv`, set `SPOT_CHE
 
 ### Near term
 
-- Ensure words like "wabi-sabi" display the frequency over time when no thesaurus entry is found and not just the baseline words
+- Refactor so that get_mw_dictionary_data is not being called twice: once in get_wotd() and again in main()
 - Add "galore" to the etymology unit test cases to see if it can be improved without regressing the others
 - Clean up tech debt of old ways to pull the definition and extract relevant synonyms
 - Add "Recent Examples on the Web" — extract from MW dictionary page if available in API, or fetch multiple example sentences and select the most illustrative

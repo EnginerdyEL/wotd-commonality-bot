@@ -37,6 +37,7 @@ def get_wotd(mw_tools):
     first_item = root.find(".//item")
     word = first_item.find("title").text.strip().lower()
     # word = "inscrutable" # DEBUG
+    # word = "wabi-sabi" # DEBUG
     print(f"[{ts()}] WOTD from RSS: {word}")
 
     # Extract definition and POS from RSS feed
