@@ -111,7 +111,7 @@ def main():
             if not no_post_mode: post_to_discord(f'Not enough data to calculate commonality for "{word}".', None)
             print(f"[{ts()}] Posted to Discord successfully.")
         else:
-            selected_synonyms, commonality = word_tools.build_insight(word, synonyms, ngram_data)
+            selected_synonyms, not_plotted_synonyms, commonality = word_tools.build_insight(word, synonyms, ngram_data)
             chart_buf = word_tools.generate_chart(word)
 
     ipa, regions = wik_dict_tools.get_wiktionary_data(word)
